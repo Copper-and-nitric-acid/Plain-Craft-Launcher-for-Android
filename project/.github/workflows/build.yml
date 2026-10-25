@@ -1,0 +1,58 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+# 源码在仓库的 project/ 子目录里，所以每个 run 步骤都切到这个目录。
+defaults:
+  run:
+    working-directory: project
+
+jobs:
+  core-check:
+    name: core 自检（不需要 Android SDK）
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: 编译 core 并跑 32 项自检
+        run: |
+          curl -sSL -o /tmp/kotlinc.zip \
+            https://github.com/JetBrains/kotlin/releases/download/v2.0.21/kotlin-compiler-2.0.21.zip
+          unzip -q /tmp/kotlinc.zip -d /tmp
+          chmod +x /tmp/kotlinc/bin/*
+          /tmp/kotlinc/bin/kotlinc core/src/main/kotlin -include-runtime -d /tmp/core.jar
+          java -Dfile.encoding=UTF-8 -jar /tmp/core.jar device_profiles.json
+
+  apk:
+    name: 构建 debug APK
+    needs: core-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: 授权 gradlew
+        run: chmod +x ./gradlew
+      - name: 同步档位表到 assets
+        run: |
+          mkdir -p app/src/main/assets
+          cp device_profiles.json app/src/main/assets/device_profiles.json
+      - name: assembleDebug
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pcla-debug-apk
+          path: project/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

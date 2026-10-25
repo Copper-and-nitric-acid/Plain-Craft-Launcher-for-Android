@@ -1,0 +1,9 @@
+Device,CPU,RAM_GB,JVM_Alloc_MB,OS,Environment,Sim_Distance,Game_Version,Gen_Time_S,Render_Distance,Max_FPS,TNT_Max_FPS,TNT_Min_FPS,Min_FPS,Analysis
+OPPO A58x,MT6833V,8,2048,Android 13,"Pure Forge (0 Mods)",12,1.12.2,20,2,200,150,18,-,"Java 8 era, extremely lightweight. Bottleneck: CPU single-core during explosions."
+OPPO A58x,MT6833V,8,2048,Android 13,"Pure Forge (0 Mods)",12,1.12.2,20,17,60,-,-,17,"Extreme render distance causes chunk loading storm and main thread stuttering."
+OPPO A58x,MT6833V,8,2048,Android 13,"Pure Forge (0 Mods)",12,1.18,50,2,136,110,46,-,"Complex 3D terrain. GPU is fine at low render distance. CPU struggles slightly during explosions."
+OPPO A58x,MT6833V,8,2048,Android 13,"Pure Forge (0 Mods)",12,1.18,50,17,20,-,-,5,"Deadly. Triggers Mipmap downscaling (mosaic effect) and main thread deadlock."
+OPPO A58x,MT6833V,8,2048,Android 13,"Pure Forge (0 Mods)",12,1.19.2,125,2,52,60,48,15,"Deep Dark algorithm causes extreme generation time. Highly stable FPS but capped by CPU."
+OPPO A58x,MT6833V,8,2048,Android 13,"Pure Forge (0 Mods)",12,1.19.2,125,17,16,-,-,8,"Unplayable. Hard to load, FPS drops to single digits."
+OPPO A58x,MT6833V,8,2048,Android 13,"Pure Forge (No OptiFine)",12,1.20.1,50,2,133,113,78,8,"Without OptiFine, performance skyrockets. Drops to 8 FPS at initial load, but TNT min FPS is excellent (78)."
+OPPO A58x,MT6833V,8,2048,Android 13,"Pure Forge (No OptiFine)",12,1.20.1,50,17,23,-,-,7,"Extreme render distance destroys GPU. Proves Render Dist 17 is impossible for MT6833V."
