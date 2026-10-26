@@ -92,7 +92,7 @@ internal fun DownloadScreen() {
                         val dest = destFile(context, url.trim())
                         val expected = shaText.trim().ifBlank { null }
                         val outcome = withContext(Dispatchers.IO) {
-                            HttpDownloader(DownloadConfig()).download(
+                            HttpDownloader.create(DownloadConfig()).download(
                                 url = url.trim(),
                                 dest = dest,
                                 expectedSha1 = expected,

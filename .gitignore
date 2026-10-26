@@ -1,0 +1,13 @@
+# Gradle / Android 构建产物
+build/
+.gradle/
+.idea/
+local.properties
+*.iml
+*.apk
+*.aab
+.kotlin/
+
+# 系统垃圾
+.DS_Store
+Thumbs.db

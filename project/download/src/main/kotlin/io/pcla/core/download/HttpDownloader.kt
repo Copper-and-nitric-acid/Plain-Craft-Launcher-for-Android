@@ -50,6 +50,7 @@ class HttpDownloader(
 ) {
     private val cfg = config.sanitized()
 
+
     data class Probe(val sizeBytes: Long, val rangeSupported: Boolean)
 
     /** 探测大小与是否支持 Range。探测失败不算致命——退回单连接整文件下载。 */
@@ -306,6 +307,12 @@ class HttpDownloader(
     }
 
     companion object {
+        /** 不暴露 OkHttp 类型的入口，app 模块用这个，避免 okhttp 泄漏到上层 classpath。 */
+        fun create(
+            config: DownloadConfig = DownloadConfig(),
+            log: (String) -> Unit = {},
+        ): HttpDownloader = HttpDownloader(config = config, log = log)
+
         fun defaultClient(cfg: DownloadConfig): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(cfg.connectTimeoutMs, TimeUnit.MILLISECONDS)
             .readTimeout(cfg.readTimeoutMs, TimeUnit.MILLISECONDS)

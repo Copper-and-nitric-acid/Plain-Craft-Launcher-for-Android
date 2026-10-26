@@ -6,7 +6,7 @@ kotlin { jvmToolchain(17) }
 
 dependencies {
     // 整个工程里唯一一个第三方依赖。放在独立模块，core 保持零依赖。
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    api("com.squareup.okhttp3:okhttp:4.12.0")
     testImplementation(kotlin("test"))
 }
 
