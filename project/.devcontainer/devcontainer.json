@@ -1,0 +1,22 @@
+{
+  "name": "PCLA Android",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+  "features": {
+    "ghcr.io/devcontainers/features/java:1": {
+      "version": "17",
+      "jdkDistro": "tem"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/setup-android.sh",
+  "remoteEnv": {
+    "ANDROID_HOME": "/usr/local/android-sdk",
+    "GRADLE_OPTS": "-Dorg.gradle.jvmargs=-Xmx2g"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack"
+      ]
+    }
+  }
+}

@@ -117,7 +117,9 @@ fun main(args: Array<String>) {
 
     println("\n=== 4. JVM 参数生成（RD=4，无 mod） ===")
     val cases = listOf("1.12.2", "1.16.5", "1.18", "1.19.2", "1.20.1")
-    val expectedHeap = mapOf("1.12.2" to 2048, "1.16.5" to 2048, "1.18" to 3072, "1.19.2" to 3072, "1.20.1" to 2560)
+    // 默认堆 = 这台机型实测跑过的基线（2048）。1.18 曾按「版本系数×甜点」算到 3072，
+    // 但那是 8GB 机器上不该默认给出的数字：加堆要等运行时 GC 证据（见 DegradeLadder）。
+    val expectedHeap = mapOf("1.12.2" to 2048, "1.16.5" to 2048, "1.18" to 2048, "1.19.2" to 2048, "1.20.1" to 2048)
     for (v in cases) {
         val cfg = JvmTuner.tune(spec, profile, LaunchTarget(v, Loader.FORGE, 0, 4))
         val block = cfg.diagnostics.filter { it.severity == Severity.BLOCK }
@@ -129,13 +131,15 @@ fun main(args: Array<String>) {
     val rd17 = JvmTuner.tune(spec, profile, LaunchTarget("1.16.5", Loader.FORGE, 0, 17))
     check("RD17 被标记为 BLOCK", rd17.blocked)
     eq("RD17 诊断码", "RD_BAN", rd17.diagnostics.first { it.severity == Severity.BLOCK }.code)
-    check("RD17 时堆会跟着涨", rd17.heapMb > 2048, "实际 ${rd17.heapMb}")
+    // 渲染距离吃的是显存和 CPU，不是堆。实测 1.18 在 RD17 下用 2048MB 也没有 OOM。
+    check("RD17 不改变堆", rd17.heapMb == 2048, "实际 ${rd17.heapMb}")
 
     val avoid = JvmTuner.tune(spec, profile, LaunchTarget("1.19.2", Loader.FORGE, 0, 4))
     check("1.19.2 被标记为 BLOCK", avoid.blocked)
 
     val greedy = JvmTuner.tune(spec, profile, LaunchTarget("1.18", Loader.FORGE, 0, 4, heapOverrideMb = 8192))
-    check("超安全线被压回", greedy.heapMb <= 3435, "实际 ${greedy.heapMb}")
+    check("超安全线被压回", greedy.heapMb <= 3072, "实际 ${greedy.heapMb}")
+    eq("安全上限受机型实测兜住", 3072, JvmTuner.safeCeilingMb(spec, profile))
     check("超安全线有告警", greedy.diagnostics.any { it.code == "HEAP_CLAMPED" })
 
     println("\n=== 6. GC 日志解析（真实日志片段） ===")

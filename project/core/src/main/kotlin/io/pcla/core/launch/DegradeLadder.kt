@@ -68,6 +68,9 @@ object DegradeLadder {
     /** 没有回收率数据时的退路：活对象占堆超过这个比例也算顶满。 */
     private const val LIVE_SET_PRESSURE = 0.8
 
+    /** 加堆时一次抬多少。抬一档就够验证方向，不要一次翻倍。 */
+    private const val GROW_STEP_MB = 1024
+
     /** 可用内存低于堆的这个倍数，就该缩堆给系统让路。 */
     private const val MEM_HEADROOM = 1.2
 
@@ -121,9 +124,9 @@ object DegradeLadder {
         }
 
         // ---- 第 3 步：堆（只在有证据时动） ----
-        val heapAction = heapStep(obs, spec, tuned)
+        val heapAction = heapStep(obs, spec, profile, tuned)
         if (heapAction != null) actions += heapAction
-        val heapVerdict = heapVerdict(obs, spec, tuned)
+        val heapVerdict = heapVerdict(obs, spec, profile, tuned)
 
         if (actions.isEmpty()) notes += "四项都到边界了。这种情况基本是硬件上限，不是配置问题。"
 
@@ -137,7 +140,7 @@ object DegradeLadder {
         else -> null
     }
 
-    private fun heapStep(obs: RunObservation, spec: DeviceSpec, tuned: JvmConfig?): DegradeAction? {
+    private fun heapStep(obs: RunObservation, spec: DeviceSpec, profile: DeviceProfile, tuned: JvmConfig?): DegradeAction? {
         val available = obs.memAvailableMb
         if (available != null && available < obs.heapMb * MEM_HEADROOM) {
             val target = shrinkTarget(spec, obs.heapMb)
@@ -153,8 +156,13 @@ object DegradeLadder {
         val pct = obs.gcPausePct ?: return null
         if (pct < GC_PAUSE_PCT || !heapTight(obs)) return null
 
-        val ceiling = JvmTuner.safeCeilingMb(spec)
-        val target = minOf(ceiling, maxOf(tuned?.heapMb ?: (obs.heapMb + 512), (obs.liveSetMb ?: 0) * 2))
+        val ceiling = JvmTuner.safeCeilingMb(spec, profile)
+        // 加堆要看「当前堆 + 一档」，而不是看 JvmTuner 的推荐值——
+        // 推荐值本身已经按实测基线压得很保守，拿它当目标会导致「永远不需要动」。
+        val target = minOf(
+            ceiling,
+            maxOf(obs.heapMb + GROW_STEP_MB, (obs.liveSetMb ?: 0) * 2, tuned?.heapMb ?: 0),
+        )
         if (target <= obs.heapMb) return null
         val evidence = obs.gcReclaimPct?.let { "young GC 只能回收 ${fmt(it)}%" }
             ?: "活对象 ${obs.liveSetMb}MB 顶满堆"
@@ -165,20 +173,21 @@ object DegradeLadder {
         )
     }
 
-    private fun heapVerdict(obs: RunObservation, spec: DeviceSpec, tuned: JvmConfig?): String {
+    private fun heapVerdict(obs: RunObservation, spec: DeviceSpec, profile: DeviceProfile, tuned: JvmConfig?): String {
         val available = obs.memAvailableMb
         if (available != null && available < obs.heapMb * MEM_HEADROOM) {
             return "堆要缩：可用内存 ${available}MB 撑不住 ${obs.heapMb}MB 堆（内存问题，与帧率无关）。"
         }
         val pct = obs.gcPausePct ?: return "没有 GC 数据，不动堆——盲调堆只会制造新问题。"
-        val ceiling = JvmTuner.safeCeilingMb(spec)
+        val ceiling = JvmTuner.safeCeilingMb(spec, profile)
+        val growTarget = minOf(ceiling, maxOf(obs.heapMb + GROW_STEP_MB, tuned?.heapMb ?: 0))
         return when {
             pct < GC_PAUSE_PCT ->
                 "GC 只占墙钟 ${fmt(pct)}%，帧率瓶颈不在 GC，**缩堆无效**——缩了只会让 GC 更频繁。"
             heapTight(obs) ->
                 "GC 占 ${fmt(pct)}% 且回不上来（${
                     obs.gcReclaimPct?.let { "回收率 ${fmt(it)}%" } ?: "活对象顶满"
-                }），该加堆：${obs.heapMb} → ${minOf(ceiling, tuned?.heapMb ?: obs.heapMb + 512)}MB。"
+                }），该加堆：${obs.heapMb} → ${growTarget}MB。"
             else ->
                 "GC 占 ${fmt(pct)}%，但活对象还没顶满堆，先不动堆，按渲染距离/版本处理。"
         }

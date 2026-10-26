@@ -1,0 +1,116 @@
+{
+  "$schema": "pcla.device_profiles/v1",
+  "note": "数据来自真机实测，method=vanilla-forge-0mods-no-optifine（全部无 OptiFine，故不能用来比较 OF 优劣）。RD=渲染距离，数字为对应条件下的 Max_FPS。",
+  "profiles": [
+    {
+      "id": "mt6833v",
+      "soc": "MT6833V",
+      "soc_alias": [
+        "Dimensity 700",
+        "天玑700",
+        "MT6833"
+      ],
+      "gpu": "Mali-G57 MC2",
+      "devices": [
+        "OPPO PHJ110",
+        "OPPO A58x"
+      ],
+      "ram_gb": 8,
+      "jvm_heap_sweet_mb": 2048,
+      "render_distance": {
+        "min": 2,
+        "sweet": 4,
+        "max": 6,
+        "warn_at": 8,
+        "ban": 12
+      },
+      "measured": {
+        "1.12.2": {
+          "rd2_max": 200,
+          "rd17_max": 60,
+          "tnt": [
+            150,
+            18
+          ],
+          "gen_s": 20,
+          "verdict": "ok",
+          "note": "CPU 单核瓶颈，爆炸谷底 18fps"
+        },
+        "1.16.5": {
+          "rd2_max": 144,
+          "verdict": "ok",
+          "note": "全场最优：RD2 144(最高)、RD17 22、TNT 111/87。谷底 87 比 1.18 的 46 高 89%，峰值与 1.20.1 的 113 基本持平。",
+          "rd17_max": 22,
+          "tnt": [
+            111,
+            87
+          ]
+        },
+        "1.18": {
+          "rd2_max": 136,
+          "rd17_max": 20,
+          "tnt": [
+            110,
+            46
+          ],
+          "gen_s": 50,
+          "verdict": "ok",
+          "note": "TNT 谷底 46 已复测复现，非噪声：1.18 存在真实回归（1.16.5=87，1.20.1 恢复到 78 仍不如）。RD17 主线程卡死，最低 5fps。",
+          "reproducible": true
+        },
+        "1.19.2": {
+          "rd2_max": 52,
+          "rd17_max": 16,
+          "tnt": [
+            60,
+            48
+          ],
+          "gen_s": 125,
+          "verdict": "avoid",
+          "note": "世界生成 125s，性价比全场最差"
+        },
+        "1.20.1": {
+          "rd2_max": 133,
+          "rd17_max": 23,
+          "gen_s": 50,
+          "verdict": "ok",
+          "note": "与 1.18 基本持平，用新版本不需要付代价",
+          "tnt": [
+            113,
+            78
+          ]
+        }
+      },
+      "rules": [
+        "默认推荐 1.16.5：平均帧最高且 TNT 谷底 87 为全场最高；1.20.1 作为次选（生态更新）",
+        "RD > 8 时弹窗：实测 RD17 全版本跌至 5-23fps",
+        "新建实例默认 RD=4，不沿用桌面版的 12",
+        "1.19.2 默认标记 avoid",
+        "实例标签由 mods/ 目录扫描生成，不信任手写实例名",
+        "性能不可按版本外推：1.16.5→1.18→1.20.1 的 TNT 谷底呈 V 型(87/46/78)，必须逐版本实测"
+      ],
+      "gc_parallel_threads": 2
+    },
+    {
+      "id": "generic",
+      "soc": "unknown",
+      "ram_gb": 0,
+      "jvm_heap_sweet_mb": 2048,
+      "render_distance": {
+        "min": 2,
+        "sweet": 4,
+        "max": 6,
+        "warn_at": 8,
+        "ban": 12
+      },
+      "measured": {},
+      "rules": [
+        "未知机型使用保守默认值，探测到 GL_RENDERER 后再升级"
+      ]
+    }
+  ],
+  "todo": [
+    "补一组「加 OptiFine / 加 Embeddium」对照，才能回答该不该装优化 mod",
+    "CSV 需新增 Renderer / VSync / World_Type 三列，否则无法复现"
+  ]
+}

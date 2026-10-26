@@ -14,4 +14,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "PCLA"
-include(":core", ":app")
+include(":core", ":app", ":download")

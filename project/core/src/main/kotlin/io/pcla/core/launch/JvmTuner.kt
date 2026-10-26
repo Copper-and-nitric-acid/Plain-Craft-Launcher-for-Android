@@ -24,11 +24,13 @@ import io.pcla.core.device.Verdict
  */
 object JvmTuner {
 
-    private const val MB_PER_RD_STEP = 128
     private const val MB_PER_MOD = 4
     private const val MOD_HEAP_CAP_MB = 1024
     private const val HEAP_FLOOR_MB = 1024
     private const val HEAP_CEILING_MB = 4096
+
+    /** 允许在实测甜点之上再抬多少。再多就是拿进程被杀的风险换不存在的帧率。 */
+    private const val HEAP_HEADROOM_MB = 1024
 
     /** 堆占物理内存的比例上限。超过这条线，Android 会在你玩游戏时把进程杀掉。 */
     private const val RAM_FRACTION = 0.45
@@ -67,17 +69,16 @@ object JvmTuner {
 
         // ---- 3. 堆大小 ----
         val major = majorOf(target.mcVersion)
-        val multiplier = heapMultiplier(major)
         val sweetHeap = profile.heapSweetMb
-        val ceiling = safeCeilingMb(spec)
+        val ceiling = safeCeilingMb(spec, profile)
 
-        val derived = (
-            (sweetHeap * multiplier).toInt()
-                + (rd - rule.sweet).coerceAtLeast(0) * MB_PER_RD_STEP
-                + (target.modCount * MB_PER_MOD).coerceAtMost(MOD_HEAP_CAP_MB)
-            )
-
-        val requested = target.heapOverrideMb ?: derived
+        // 默认堆 = 这台机型实测跑过的基线，只按 mod 数量微调。
+        //
+        // 曾经按「版本系数 × 甜点堆 + 每级渲染距离 128MB」推导，8GB 机器上会算出 3686MB；
+        // 但实测 1.18 在 RD17 下用 2048MB 也没 OOM——渲染距离吃的是显存和 CPU，不是堆。
+        // 把没有证据的加法堆上去，只会让 Android 在后台把进程杀掉。
+        val requested = target.heapOverrideMb
+            ?: (sweetHeap + (target.modCount * MB_PER_MOD).coerceAtMost(MOD_HEAP_CAP_MB))
         val heap = requested.coerceIn(HEAP_FLOOR_MB, ceiling)
 
         if (heap < requested) {
@@ -90,8 +91,9 @@ object JvmTuner {
         if (major in 18..19 && heap < 3072) {
             diagnostics += Diagnostic(
                 "GC_RISK_118", Severity.WARN,
-                "1.18/1.19 的活数据在这类机型上会顶到 1.2GB，堆小于 3072MB 时 young GC " +
-                    "只能回收个位数百分比，停顿会从 135ms 爬到 298ms。",
+                "1.18/1.19 的活数据在这类机型上会顶到 1.2GB。若游戏内 GC 只占墙钟 5% 以内" +
+                    "先别动；一旦 young GC 回收率低于 10%（每次只收个位数百分比），再把堆提到 " +
+                    "3072MB——停顿会从 135ms 爬到 298ms 就是它干的。",
             )
         }
 
@@ -138,8 +140,11 @@ object JvmTuner {
      * 本机堆的安全上限：物理内存的 45%，且不超过 4096。
      * 超过这条线 Android 不会让游戏「变慢」，而是直接把进程杀掉。
      */
-    fun safeCeilingMb(spec: DeviceSpec): Int =
-        minOf((spec.ramMb * RAM_FRACTION).toInt(), HEAP_CEILING_MB).coerceAtLeast(HEAP_FLOOR_MB)
+    fun safeCeilingMb(spec: DeviceSpec, profile: DeviceProfile? = null): Int {
+        val byRam = (spec.ramMb * RAM_FRACTION).toInt()
+        val byProfile = profile?.let { it.heapSweetMb + HEAP_HEADROOM_MB } ?: HEAP_CEILING_MB
+        return minOf(byRam, byProfile, HEAP_CEILING_MB).coerceAtLeast(HEAP_FLOOR_MB)
+    }
 
     /** 主版本号："1.18.2" → 18；"1.7.10" → 7；解析失败返回 0。 */
     fun majorOf(version: String): Int {

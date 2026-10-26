@@ -1,64 +1,55 @@
-# 怎么验证这份代码是真的能跑
+# 验证台账（只写真跑过的命令与结果）
 
-这里的命令都是实际执行过的，不是"应该可以"。
+> 规则：本文档只记录「本机真跑过」的东西。
+> 没有 Android SDK，所以 **APK 从未编译过**；任何「能装、能用」的说法都不成立。
+> 每条都要标：已验证 / 未验证。
 
-## PC 上装工具链
+## 工具链（本机临时装到 /tmp，不进仓库）
 
+| 组件 | 版本 | 来源 |
+|---|---|---|
+| OpenJDK | 17.0.2+8-86 | download.java.net（adoptium 只有 30KB/s，不可用） |
+| kotlinc | 2.0.21 (JRE 17) | gh-proxy 代理 GitHub Release |
+| okhttp / okio jar | 4.12.0 / 3.6.0 | Maven Central，仅用于本机编译校验 |
+
+## 已验证
+
+### 1. core 纯逻辑（33 项自检）
 ```bash
-mkdir -p /tmp/jdk-17.0.2 /tmp/kc && cd /tmp
-# JDK 17（arm64；x64 换 ..._x64_bin.tar.gz）
-curl -L -o jdk.tar.gz https://download.java.net/java/GA/jdk17.0.2/dfd4a8d0985749f896bed50d7138ee7f/8/GPL/openjdk-17.0.2_linux-aarch64_bin.tar.gz
-tar xzf jdk.tar.gz -C /tmp/jdk-17.0.2 --strip-components=1
-
-# Kotlin 2.0.21
-curl -L -o kotlin.zip https://github.com/JetBrains/kotlin/releases/download/v2.0.21/kotlin-compiler-2.0.21.zip
-python3 -c "import zipfile;zipfile.ZipFile('kotlin.zip').extractall('/tmp/kc')"
-chmod +x /tmp/kc/kotlinc/bin/*
-```
-
-## 编译 core 并跑自检
-
-```bash
-cd <repo>/core
 export JAVA_HOME=/tmp/jdk-17.0.2 PATH=/tmp/jdk-17.0.2/bin:$PATH
-/tmp/kc/kotlinc/bin/kotlinc src/main/kotlin -include-runtime -d /tmp/build/core.jar
-java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -jar /tmp/build/core.jar device_profiles.json
+/tmp/kc/kotlinc/bin/kotlinc core/src/main/kotlin -include-runtime -d /tmp/build/core.jar
+java -Dfile.encoding=UTF-8 -jar /tmp/build/core.jar device_profiles.json
+# → 通过 33 项，失败 0 项
 ```
 
-期望结尾：`通过 32 项，失败 0 项`。
-
-`-Dfile.encoding` 一定要加，否则中文输出在 Android/Termux 上会乱码。
-
-## 分析 GC 日志
-
+### 2. download 模块（49 项自检 + 真实下载）
 ```bash
-java -Dfile.encoding=UTF-8 -jar core.jar gc /path/to/gc.log
+/tmp/kc/kotlinc/bin/kotlinc download/src/main/kotlin \
+  -cp "/tmp/okhttp/okhttp-4.12.0.jar:/tmp/okhttp/okio-jvm-3.6.0.jar" \
+  -d /tmp/build/dl.jar
+# dl.jar 64,667 字节，sha256 dd4226d0…
+
+java -cp "/tmp/build/dl.jar:/tmp/okhttp/okhttp-4.12.0.jar:/tmp/okhttp/okio-jvm-3.6.0.jar:/tmp/kc/kotlinc/lib/kotlin-stdlib.jar" \
+  io.pcla.core.download.DownloadSelfTestKt
+# → 通过 49 项，失败 0 项
 ```
+真实下载（1.20.1 client.jar，23,028,853 字节，SHA-1 三次全对）：
+| 并发 | 耗时 | 吞吐 |
+|---|---|---|
+| 1 | 27.14s | 0.81 MB/s |
+| 4 | 17.65s | 1.24 MB/s |
+| 6 | 20.70s | 1.06 MB/s（触发 429，退避 32s） |
 
-## 用实测数据问"下一步该动什么"
-
+### 3. app 模块的语法级检查（不是编译）
 ```bash
-# 版本 RD 帧率 采样秒 堆MB GC占用% 回收率% 可用内存MB
-java -Dfile.encoding=UTF-8 -jar core.jar degrade device_profiles.json 1.16.5 17 18 60 2048 0.4
+/tmp/kc/kotlinc/bin/kotlinc core/src/main/kotlin app/src/main/kotlin -d /tmp/build/check.jar
+# 语法错误 0；自定义符号 unresolved 0；剩余 717 条全部是缺 Android SDK 的符号
 ```
 
-## 编译 APK
+## 未验证（不要对用户说「已通过」）
 
-```bash
-echo "sdk.dir=$ANDROID_HOME" > local.properties
-gradle :app:assembleDebug
-```
-
-仓库里**没有 gradle wrapper**（手机上手写二进制 jar 不现实），所以用系统装的 gradle，
-或 CI 里的 `gradle/actions/setup-gradle`。别跑 `./gradlew`，会提示文件不存在。
-
-## 云端构建（GitHub Actions）
-
-仓库里源码在 `project/` 子目录，workflow 用 `defaults.run.working-directory: project`。
-仓库里带标准 gradle wrapper（`gradlew` / `gradlew.bat` / `gradle/wrapper/*`），
-CI 直接 `./gradlew :app:assembleDebug`，与本地构建完全一致；wrapper 首次运行会自动下载 gradle 8.9。
-
-- 触发：push 到 master/main，或 Actions 页面手动 Run workflow。
-- 第一个 job `core-check` 不碰 Android SDK，几十秒内告诉你自检有没有过。
-- 第二个 job `apk` 出产物，到那次运行的页面底部 Artifacts 下载 `pcla-debug-apk`，
-  解压得到 `app-debug.apk`，手机上直接安装（debug 包会自动签名）。
+- [ ] **APK 构建**：没有 Android SDK / gradle，`assembleDebug` 一次都没跑过
+- [ ] **Compose UI 真机渲染**：只做过符号解析，没渲染过一帧
+- [ ] **git wrapper 实跑**：`gradlew` 在 /sdcard 是 noexec，只校验过字节与 zip 结构
+- [ ] **接入 FCL 后能否启动游戏**：连 FCL 原版都没编出来
+- [ ] **okhttp 在 Android 上的行为**：本机是 JVM 17 跑通，Android 还有 R8/desugaring/证书差异
