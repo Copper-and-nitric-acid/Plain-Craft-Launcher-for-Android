@@ -47,6 +47,8 @@ class HttpDownloader(
     private val config: DownloadConfig = DownloadConfig(),
     private val client: OkHttpClient = defaultClient(config),
     private val log: (String) -> Unit = {},
+    /** 撞到 429/503 时回调一次，调度层据此收缩并发。 */
+    private val onThrottled: (() -> Unit)? = null,
 ) {
     private val cfg = config.sanitized()
 
@@ -252,6 +254,7 @@ class HttpDownloader(
                 client.newCall(req).execute().use { resp: Response ->
                     if (resp.code == 429 || resp.code == 503) {
                         val wait = min(60_000L, (1L shl min(attempt + 1, 6)) * 1000L)
+                        onThrottled?.invoke()
                         log("HTTP ${resp.code}，退避 ${wait}ms 后重试（第 ${attempt + 1} 次）")
                         Thread.sleep(wait)
                         attempt++
@@ -311,7 +314,8 @@ class HttpDownloader(
         fun create(
             config: DownloadConfig = DownloadConfig(),
             log: (String) -> Unit = {},
-        ): HttpDownloader = HttpDownloader(config = config, log = log)
+            onThrottled: (() -> Unit)? = null,
+        ): HttpDownloader = HttpDownloader(config = config, log = log, onThrottled = onThrottled)
 
         fun defaultClient(cfg: DownloadConfig): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(cfg.connectTimeoutMs, TimeUnit.MILLISECONDS)
