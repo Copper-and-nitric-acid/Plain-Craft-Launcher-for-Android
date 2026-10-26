@@ -65,7 +65,8 @@ fun PclaApp() {
                 msg != null -> CenteredMessage("设备探测失败：$msg") { reload++ }
                 r == null -> CenteredMessage("正在读取 GPU 与内存…", null)
                 tab == 0 -> HomeScreen(r) { reload++ }
-                else -> DegradeScreen(r.spec, r.profile)
+                tab == 1 -> DegradeScreen(r.spec, r.profile)
+                else -> DownloadScreen()
             }
         }
     }
@@ -93,8 +94,10 @@ private fun PclTopBar(tab: Int, onTab: (Int) -> Unit) {
             PclTab("体检", selected = tab == 0) { onTab(0) }
             Spacer(Modifier.width(5.dp))
             PclTab("降级", selected = tab == 1) { onTab(1) }
+            Spacer(Modifier.width(5.dp))
+            PclTab("下载", selected = tab == 2) { onTab(2) }
             Spacer(Modifier.weight(1f))
-            Text("0.1.0", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
+            Text("0.2.0", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
         }
     }
 }
