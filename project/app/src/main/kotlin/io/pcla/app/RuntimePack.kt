@@ -71,10 +71,28 @@ object RuntimePack {
         return Installed(major, finalDir)
     }
 
-    /** 解出来的是 Android 版 java（bionic），调用方必须自己设 LD_LIBRARY_PATH。 */
-    fun libraryPath(installed: Installed): String =
-        listOf(File(installed.home, "lib"), File(installed.home, "lib/aarch64"))
+    /**
+     * 解出来的是 Android 版 java（bionic），调用方必须自己设 LD_LIBRARY_PATH。
+     *
+     * 目录结构不能靠猜：包里 Java 8 的布局是
+     *   bin/java（7552 字节的小启动器）
+     *   lib/aarch64/jli/libjli.so     ← bin/java 第一件事就是找它
+     *   lib/aarch64/server/libjvm.so
+     *   lib/aarch64/jvm.cfg
+     * 而 Java 17 是 lib/libjli.so + lib/server/libjvm.so。
+     * 两套都列进来，不存在的目录不影响加载。
+     */
+    fun libraryPath(installed: Installed): String {
+        val home = installed.home
+        return listOf(
+            "lib/aarch64/jli", "lib/aarch64/server", "lib/aarch64",
+            "lib/jli", "lib/server", "lib",
+        )
+            .map { File(home, it) }
+            .filter { it.isDirectory }
             .joinToString(":") { it.absolutePath }
+            .ifEmpty { File(home, "lib").absolutePath }
+    }
 
     private fun assetExists(context: Context, path: String): Boolean = try {
         context.assets.open(path).close(); true

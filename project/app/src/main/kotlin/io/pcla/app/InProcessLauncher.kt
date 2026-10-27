@@ -20,6 +20,20 @@ object InProcessLauncher {
 
     private const val TAG = "PCLA-JVM"
 
+    /** Java 8 的 libjli 在 lib/aarch64/jli 下，17 在 lib 下，搜索比写死路径可靠。 */
+    private fun findLib(home: File, name: String): File? {
+        val stack = ArrayDeque(listOf(File(home, "lib")))
+        var seen = 0
+        while (stack.isNotEmpty() && seen < 400) {
+            val dir = stack.removeFirst()
+            seen++
+            val hit = File(dir, name)
+            if (hit.isFile) return hit
+            dir.listFiles()?.filter { it.isDirectory }?.forEach { stack.addLast(it) }
+        }
+        return null
+    }
+
     data class Attempt(val argv: List<String>)
 
     /** 只装库、不启 VM，用来单独验证符号能否解析。 */
@@ -59,9 +73,8 @@ object InProcessLauncher {
         // Pojav 的 jre_launcher.c 用 dlopen("libjli.so") 取 JLI_Launch；
         // App 进程的 LD_LIBRARY_PATH 改不了，只能先把关键 so 以绝对路径载进来，
         // 之后 dlopen 按 soname 就能命中已加载的那份。
-        listOf("libjli.so", "libjvm.so", "libjava.so", "libjimage.so", "libverify.so", "libzip.so")
-            .map { File(runtime.home, "lib/$it") }
-            .filter { it.isFile }
+        listOf("libjli.so", "libjvm.so", "libjava.so", "libverify.so", "libzip.so", "libjimage.so")
+            .mapNotNull { name -> findLib(runtime.home, name) }
             .forEach { so ->
                 runCatching { System.load(so.absolutePath) }
                     .onFailure { onLine("预载 " + so.name + " 失败：" + (it.message ?: "")) }
