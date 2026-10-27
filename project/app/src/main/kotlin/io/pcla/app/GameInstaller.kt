@@ -5,6 +5,7 @@ import io.pcla.core.asset.AssetIndex
 import io.pcla.core.game.GamePlan
 import io.pcla.core.game.NativeExtractor
 import io.pcla.core.game.RemoteFile
+import io.pcla.core.launch.AndroidRuntime
 import io.pcla.core.launch.ClasspathBuilder
 import io.pcla.core.launch.JavaPolicy
 import io.pcla.core.launch.LaunchCommand
@@ -82,7 +83,9 @@ object GameInstaller {
         meta.assetIndexUrl?.let { writeText(indexFile, fetchText(mirrored(it))) }
         val assets = if (indexFile.isFile) AssetIndex.parse(indexFile.readText()) else emptyList()
 
-        val plan = GamePlan.build(meta, assets, versionId, clientUrl = meta.clientUrl?.let { mirrored(it) })
+        val (runtimeMeta, droppedLwjgl) = AndroidRuntime.strip(meta)
+        onProgress(Progress("换上随包的 LWJGL 3.3.3（清单里 $droppedLwjgl 条 org.lwjgl 库不再下载）", 0, 0))
+        val plan = GamePlan.build(runtimeMeta, assets, versionId, clientUrl = meta.clientUrl?.let { mirrored(it) })
         if (plan.missingUrls.isNotEmpty()) {
             onProgress(Progress("清单里有 ${plan.missingUrls.size} 个库没有下载地址", message = plan.missingUrls.take(3).joinToString()))
         }
@@ -119,16 +122,21 @@ object GameInstaller {
         val nativesDir = File(root, "natives").apply { deleteRecursively(); mkdirs() }
         NativeExtractor.extractAll(plan.natives.map { File(root, it.relativePath) to emptyList() }, nativesDir)
 
+        val lwjgl = LwjglAssets.install(context, root)
+        if (lwjgl.copied > 0) onProgress(Progress("拷贝 LWJGL 运行库 ${lwjgl.copied} 个", 0, 0))
+
         val clientJar = plan.clientJar?.let { File(root, it.relativePath).absolutePath } ?: ""
         val placeholders = ClasspathBuilder.placeholders(
             classpath = "",
-            nativesDir = nativesDir.absolutePath,
+            nativesDir = "${nativesDir.absolutePath}:${lwjgl.nativesDir}",
             gameDir = root.absolutePath,
             assetsDir = File(root, "assets").absolutePath,
             assetsIndex = assetsName,
             versionName = versionId,
         )
-        val launchPlan = ClasspathBuilder.build(meta, File(root, "libraries").absolutePath, clientJar, placeholders)
+        val launchPlan = ClasspathBuilder.build(
+            runtimeMeta, File(root, "libraries").absolutePath, clientJar, placeholders, lwjgl.jars,
+        )
         val major = meta.javaMajor ?: JavaPolicy.requiredMajor(versionId)
         onProgress(Progress("准备完成", files.size, files.size, bytes, "Java $major"))
         Installed(versionId, root, launchPlan, major)

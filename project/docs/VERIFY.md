@@ -67,3 +67,20 @@ java -cp "/tmp/build/dl.jar:/tmp/okhttp/okhttp-4.12.0.jar:/tmp/okhttp/okio-jvm-3
   执行 Android 版 `bin/java` 会报 `CANNOT LINK EXECUTABLE: library "libjli.so" not found`
   ——这是环境差异，不是包的问题。真机能否起来只能靠 APK 实测。
 - Java 8 是 `rt.jar.pack` 打包格式，运行时要 `unpack200`（`libunpack200.so` 已在 jniLibs 里）。
+
+## LWJGL：清单里那套 x86_64 原生库不能用
+
+1.16.5 的 libraries 里，原生库是 `org.lwjgl:lwjgl:3.2.2:natives-linux`，解出来是 x86_64 的
+`.so`，arm64 手机加载必然失败。查了 Maven：`lwjgl-3.2.2-natives-linux-arm64.jar` 是 **404**，
+3.3.3 才有这个 classifier，而且还是 glibc 版本，不是 Android 的。
+
+所以 AndroidRuntime.kt 干三件事：
+
+1. `strip(meta)` 把清单里所有 `org.lwjgl` 的库摘掉（1.16.5 实测少下 6 条、约 3 MB）；
+2. `LwjglAssets.install()` 把 assets 里随包的 3.3.3 jar（8 个）与 arm64 的 .so（7 个）拷到
+   `<root>/lwjgl/3.3.3/`，带大小缓存，重复进游戏不重拷；
+3. classpath 里这 8 个 jar 排最前，`-Djava.library.path` 同时含解压出的 natives 与随包 natives。
+
+没验证的：GLFW 那一层。清单被摘掉后 `org.lwjgl.glfw` 由随包 3.3.3 提供，但 3.3.3 的
+`liblwjgl.so` 是否覆盖 1.16.5 用到的 GLFW 符号，只能在真机上跑才知道；如果启动时抛
+`UnsatisfiedLinkError: org.lwjgl.glfw.GLFW.*`，就是这一层缺东西。

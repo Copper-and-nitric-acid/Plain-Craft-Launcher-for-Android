@@ -24,8 +24,9 @@ object ClasspathBuilder {
         libRoot: String,
         clientJar: String,
         placeholders: Map<String, String>,
+        extraJars: List<String> = emptyList(),
     ): LaunchPlan {
-        val entries = ArrayList<String>()
+        val entries = ArrayList<String>(extraJars)
         val natives = ArrayList<String>()
         val missing = ArrayList<String>()
 

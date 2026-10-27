@@ -8,6 +8,7 @@ import io.pcla.core.device.ProfileTable
 import io.pcla.core.game.GamePlan
 import io.pcla.core.game.GameVerifier
 import io.pcla.core.game.NativeExtractor
+import io.pcla.core.launch.AndroidRuntime
 import io.pcla.core.launch.ClasspathBuilder
 import io.pcla.core.launch.DegradeLadder
 import io.pcla.core.launch.LaunchCommand
@@ -316,6 +317,26 @@ fun main(args: Array<String>) {
     check("子目录里的 so 也平铺出来", java.io.File(nativesDir, "libother.so").isFile)
     check("so 带可执行位", java.io.File(nativesDir, "libtest.so").canExecute())
     check("META-INF 不落盘", !java.io.File(nativesDir, "MANIFEST.MF").exists())
+
+    // 手机上换 LWJGL：清单里 org.lwjgl 全去掉，随包的 jar 排在最前
+    val lmeta = VersionMeta.parse(
+        """{"id":"t","libraries":["""
+            + """{"name":"org.lwjgl:lwjgl:3.2.2","downloads":{"artifact":{"path":"org/lwjgl/lwjgl/3.2.2/lwjgl-3.2.2.jar","url":"https://x/lwjgl.jar"}}},"""
+            + """{"name":"org.lwjgl:lwjgl-glfw:3.2.2","downloads":{"classifiers":{"natives-linux":{"path":"org/lwjgl/lwjgl-glfw/3.2.2/lwjgl-glfw-3.2.2-natives-linux.jar","url":"https://x/g.jar"}}}},"""
+            + """{"name":"io.netty:netty-all:4.1.25","downloads":{"artifact":{"path":"io/netty/netty-all/4.1.25/netty-all-4.1.25.jar","url":"https://x/n.jar"}}}"""
+            + """]}"""
+    )
+    val (stripped, dropped) = AndroidRuntime.strip(lmeta)
+    eq("去掉 2 条 org.lwjgl", 2, dropped)
+    eq("剩下 1 条", 1, stripped.libraries.size)
+    check("剩下来的是 netty", stripped.libraries.single().name.contains("netty"))
+    val lplace = ClasspathBuilder.placeholders("", "/n", "/g", "/a", "1.16", "1.16.5")
+    val lplan = ClasspathBuilder.build(stripped, "/libs", "/c.jar", lplace, listOf("/x/lwjgl.jar", "/x/lwjgl-stb.jar"))
+    check("随包 jar 在 classpath 最前", lplan.classpath.startsWith("/x/lwjgl.jar:/x/lwjgl-stb.jar"))
+    check("没有下载 lwjgl 的 natives", lplan.nativeJars.none { AndroidRuntime.isLwjgl(it) })
+    check("netty 也在 classpath", lplan.classpath.contains("/libs/io/netty/netty-all"))
+    eq("每套 LWJGL 都要有 jar 与 so", 8, AndroidRuntime.JARS.size)
+    check("随包 so 名单覆盖 opengl", AndroidRuntime.NATIVES.any { it.contains("opengl") })
 
     println("\n========================================")
     println("通过 $passed 项，失败 $failed 项")
