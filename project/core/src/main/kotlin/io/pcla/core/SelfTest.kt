@@ -238,21 +238,22 @@ fun main(args: Array<String>) {
           {"name":"org.lwjgl:lwjgl:3.2.2","downloads":{"artifact":{"path":"org/lwjgl/lwjgl/3.2.2/lwjgl-3.2.2.jar","url":"https://x/lwjgl.jar","sha1":"x"}},
            "rules":[{"action":"allow","os":{"name":"linux"}},{"action":"disallow","os":{"name":"windows"}}]},
           {"name":"org.lwjgl:lwjgl:3.2.2:natives-linux","downloads":{"classifiers":{"natives-linux":{"path":"org/lwjgl/lwjgl/3.2.2/lwjgl-3.2.2-natives-linux.jar","url":"https://x/nat.jar","sha1":"y"}}},"natives":{"linux":"natives-linux"}},
+          {"name":"com.example:native-ish:1.0:natives-linux","downloads":{"classifiers":{"natives-linux":{"path":"com/example/native-ish/1.0/native-ish-1.0-natives-linux.jar","url":"https://x/e.jar","sha1":"z"}}},"natives":{"linux":"natives-linux"}},
           {"name":"com.sun:winonly:1.0","downloads":{"artifact":{"path":"com/sun/winonly/1.0/winonly-1.0.jar"}},"rules":[{"action":"allow","os":{"name":"windows"}}]}
          ]}
     """
     val meta = VersionMeta.parse(metaJson)
     eq("解析出 mainClass", "net.minecraft.client.main.Main", meta.mainClass)
     eq("解析出 java 大版本", 8, meta.javaMajor)
-    eq("库声明数量", 3, meta.libraries.size)
-    check("windows 专属库被 rules 排除", !Platform.allows(meta.libraries[2].rules))
+    eq("库声明数量", 4, meta.libraries.size)
+    check("windows 专属库被 rules 排除", !Platform.allows(meta.libraries[3].rules))
     val ph = ClasspathBuilder.placeholders("CP", "/n", "/g", "/a", "1.16", "1.16.5")
     val plan = ClasspathBuilder.build(meta, "/libs", "/g/client.jar", ph)
-    check("classpath 含 lwjgl", plan.classpath.contains("lwjgl-3.2.2.jar"))
+    check("classpath 不掺清单里的 lwjgl", !plan.classpath.contains("lwjgl-3.2.2.jar"))
     check("classpath 含 client.jar", plan.classpath.endsWith("client.jar"))
     check("windows 库不进 classpath", !plan.classpath.contains("winonly"))
     eq("natives 只收 1 个", 1, plan.nativeJars.size)
-    check("natives 路径正确", plan.nativeJars[0].endsWith("lwjgl-3.2.2-natives-linux.jar"))
+    check("natives 路径正确", plan.nativeJars[0].endsWith("native-ish-1.0-natives-linux.jar"))
     eq("无未替换占位符", 0, plan.unresolved.size)
     check("natives_directory 已替换", plan.jvmArgs.any { it == "-Djava.library.path=/n" })
     check("玩家名已替换", plan.gameArgs.contains("PCLA"))
@@ -287,10 +288,11 @@ fun main(args: Array<String>) {
 
     // 要下哪些文件
     val gp = GamePlan.build(meta, assets, "1.16.5", clientUrl = "https://x/client.jar")
+    // 样例里放行两条：lwjgl 3.2.2（有 artifact）与 com.example:native-ish（只有 classifier）
     eq("库文件数", 1, gp.libraries.size)
-    eq("natives 文件数", 1, gp.natives.size)
+    eq("natives 文件数", 2, gp.natives.size)
     eq("asset 文件数", 1, gp.assets.size)
-    eq("文件总数（含 client.jar）", 4, gp.count)
+    eq("文件总数（含 client.jar）", 5, gp.count)
     eq("asset 分片 URL", "https://resources.download.minecraft.net/ab/ab12cd34", gp.assets[0].url)
     eq("asset 落盘路径", "objects/ab/ab12cd34", gp.assets[0].relativePath)
     eq("client.jar 路径", "versions/1.16.5/1.16.5.jar", gp.clientJar?.relativePath)
@@ -368,6 +370,13 @@ fun main(args: Array<String>) {
     val awtChecks = Preflight.run(awtPlan, AwtRuntime.JARS, listOf("/n", "/m", "/j"), emptyList(), 8, "/n:/m:/j")
     check("AWT 检查项存在", awtChecks.any { it.name.contains("AWT") })
 
+
+
+    // 清单里的 org.lwjgl 3.2.2 必须被剔掉，否则和随包 3.3.3 混着加载
+    check("lwjgl 3.2.2 不进 classpath", !plan.classpath.contains("lwjgl/3.2.2"))
+    check("lwjgl natives 也不进", plan.nativeJars.none { it.contains("3.2.2") })
+    val keepLwjgl = ClasspathBuilder.build(lmeta, "/libs", "/c.jar", lplace, emptyList(), emptySet())
+    check("关掉剔除后能拿回来", keepLwjgl.classpath.contains("lwjgl/3.2.2"))
 
     // java -version 的认版本逻辑：JRE 解包坏没坏，先看这一行
     val v8 = JavaProbe.parse("""

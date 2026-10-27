@@ -25,6 +25,11 @@ object ClasspathBuilder {
         clientJar: String,
         placeholders: Map<String, String>,
         extraJars: List<String> = emptyList(),
+        // 清单里的 org.lwjgl:*:3.2.2 是给桌面 x86 用的；我们换成了随包的 3.3.3（含 arm64 原生库）。
+        // 两套同时留在 classpath 上不是「兼容」，而是：3.2.2 的 x86 liblwjgl.so 会先被
+        // java.library.path 找到 → wrong ELF class；类也会 3.2.2 与 3.3.3 混着加载。
+        // 所以按坐标前缀整组剔掉，只留随包那一套。
+        skipGroups: Set<String> = setOf("org.lwjgl"),
     ): LaunchPlan {
         val entries = ArrayList<String>(extraJars)
         val natives = ArrayList<String>()
@@ -32,6 +37,7 @@ object ClasspathBuilder {
 
         meta.libraries.forEach { lib ->
             if (!Platform.allows(lib.rules)) return@forEach
+            if (skipGroups.any { lib.name.startsWith("$it:") }) return@forEach
             if (lib.nativeClassifier != null) {
                 val path = lib.nativePath
                 if (path == null) missing.add(lib.name) else natives.add(join(libRoot, path))

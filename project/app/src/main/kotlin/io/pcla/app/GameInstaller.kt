@@ -150,8 +150,10 @@ object GameInstaller {
 
     /** 三处 natives 都进 java.library.path：清单解出来的、随包 LWJGL 的、jniLibs 的。 */
     fun nativesPath(context: Context, root: File): String = listOf(
-        File(root, "natives").absolutePath,
+        // 顺序即优先级：随包的 arm64 LWJGL 必须排在清单解出来的 x86 前面，
+        // 否则同名 liblwjgl.so 会先命中 x86 那份（wrong ELF class）
         File(root, AndroidRuntime.BUNDLE_DIR + "/natives").absolutePath,
+        File(root, "natives").absolutePath,
         context.applicationInfo.nativeLibraryDir,
     ).joinToString(":")
 
