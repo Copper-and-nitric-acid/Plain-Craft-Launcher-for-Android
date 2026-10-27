@@ -39,9 +39,13 @@ internal fun NativeCard() {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             PclField("已随包安装", "${libs.size} 个 · ${sizeText(libs.sumOf { it.sizeBytes })}")
             PclField("路径", NativeLibs.dir(context).absolutePath)
-            PclButton("试加载 gl4es（验证 dlopen 链路）") {
-                result = NativeLibs.probeLoad(context, "libgl4es_114.so") ?: "加载成功，dlopen 链路通"
-            }
+            PclButton(
+                text = "试加载 gl4es（验证 dlopen 链路）",
+                onClick = {
+                    result = NativeLibs.probeLoad(context, "libgl4es_114.so")
+                        ?: "加载成功，dlopen 链路通"
+                },
+            )
             result?.let { Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary) }
         }
     }
