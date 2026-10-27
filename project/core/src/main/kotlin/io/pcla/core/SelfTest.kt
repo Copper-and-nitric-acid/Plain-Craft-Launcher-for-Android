@@ -5,6 +5,9 @@ import io.pcla.core.bench.GcLogParser
 import io.pcla.core.bench.GcReport
 import io.pcla.core.device.DeviceSpec
 import io.pcla.core.device.ProfileTable
+import io.pcla.core.game.GamePlan
+import io.pcla.core.game.GameVerifier
+import io.pcla.core.game.NativeExtractor
 import io.pcla.core.launch.ClasspathBuilder
 import io.pcla.core.launch.DegradeLadder
 import io.pcla.core.launch.LaunchCommand
@@ -228,9 +231,9 @@ fun main(args: Array<String>) {
          "arguments":{"jvm":["-Djava.library.path=${'$'}{natives_directory}","-cp","${'$'}{classpath}"],
                       "game":["--username","${'$'}{auth_player_name}"]},
          "libraries":[
-          {"name":"org.lwjgl:lwjgl:3.2.2","downloads":{"artifact":{"path":"org/lwjgl/lwjgl/3.2.2/lwjgl-3.2.2.jar","sha1":"x"}},
+          {"name":"org.lwjgl:lwjgl:3.2.2","downloads":{"artifact":{"path":"org/lwjgl/lwjgl/3.2.2/lwjgl-3.2.2.jar","url":"https://x/lwjgl.jar","sha1":"x"}},
            "rules":[{"action":"allow","os":{"name":"linux"}},{"action":"disallow","os":{"name":"windows"}}]},
-          {"name":"org.lwjgl:lwjgl:3.2.2:natives-linux","downloads":{"classifiers":{"natives-linux":{"path":"org/lwjgl/lwjgl/3.2.2/lwjgl-3.2.2-natives-linux.jar","sha1":"y"}}},"natives":{"linux":"natives-linux"}},
+          {"name":"org.lwjgl:lwjgl:3.2.2:natives-linux","downloads":{"classifiers":{"natives-linux":{"path":"org/lwjgl/lwjgl/3.2.2/lwjgl-3.2.2-natives-linux.jar","url":"https://x/nat.jar","sha1":"y"}}},"natives":{"linux":"natives-linux"}},
           {"name":"com.sun:winonly:1.0","downloads":{"artifact":{"path":"com/sun/winonly/1.0/winonly-1.0.jar"}},"rules":[{"action":"allow","os":{"name":"windows"}}]}
          ]}
     """
@@ -277,6 +280,42 @@ fun main(args: Array<String>) {
     check("缺 -cp 时自动补", argv2.contains("-cp") && argv2.contains(classic.classpath))
     check("mainClass 在 gameArgs 前", argv.indexOf(plan.mainClass) < argv.indexOf("--username"))
     check("空格参数渲染时加引号", LaunchCommand.render(listOf("a b")).startsWith("\""))
+
+    // 要下哪些文件
+    val gp = GamePlan.build(meta, assets, "1.16.5", clientUrl = "https://x/client.jar")
+    eq("库文件数", 1, gp.libraries.size)
+    eq("natives 文件数", 1, gp.natives.size)
+    eq("asset 文件数", 1, gp.assets.size)
+    eq("文件总数（含 client.jar）", 4, gp.count)
+    eq("asset 分片 URL", "https://resources.download.minecraft.net/ab/ab12cd34", gp.assets[0].url)
+    eq("asset 落盘路径", "objects/ab/ab12cd34", gp.assets[0].relativePath)
+    eq("client.jar 路径", "versions/1.16.5/1.16.5.jar", gp.clientJar?.relativePath)
+
+    // 哈希复核：只报告，不删文件
+    val tmp = java.io.File(System.getProperty("java.io.tmpdir"), "pcla-selftest").apply { deleteRecursively(); mkdirs() }
+    val fake = java.io.File(tmp, "objects/ab/ab12cd34").apply { parentFile.mkdirs(); writeText("x") }
+    val bad = GameVerifier.verify(gp.assets, tmp) { "deadbeef" }
+    eq("哈希不符被发现", 1, bad.size)
+    val good = GameVerifier.verify(gp.assets, tmp) { "ab12cd34" }
+    eq("哈希一致时无告警", 0, good.size)
+    check("根因文件确实存在", fake.isFile)
+
+    // natives 解压：只取 .so，跳过 META-INF 与普通文件
+    val jar = java.io.File(tmp, "natives-test.jar")
+    java.util.zip.ZipOutputStream(jar.outputStream()).use { zos ->
+        listOf("META-INF/MANIFEST.MF" to "m", "libtest.so" to "s", "readme.txt" to "r", "sub/libother.so" to "o")
+            .forEach { (n, c) ->
+                zos.putNextEntry(java.util.zip.ZipEntry(n)); zos.write(c.toByteArray()); zos.closeEntry()
+            }
+    }
+    val nativesDir = java.io.File(tmp, "natives")
+    val nr = NativeExtractor.extract(jar, nativesDir)
+    eq("解出 2 个 so", 2, nr.extracted)
+    eq("跳过的条目数", 1, nr.skipped)
+    check("libtest.so 落盘", java.io.File(nativesDir, "libtest.so").isFile)
+    check("子目录里的 so 也平铺出来", java.io.File(nativesDir, "libother.so").isFile)
+    check("so 带可执行位", java.io.File(nativesDir, "libtest.so").canExecute())
+    check("META-INF 不落盘", !java.io.File(nativesDir, "MANIFEST.MF").exists())
 
     println("\n========================================")
     println("通过 $passed 项，失败 $failed 项")
