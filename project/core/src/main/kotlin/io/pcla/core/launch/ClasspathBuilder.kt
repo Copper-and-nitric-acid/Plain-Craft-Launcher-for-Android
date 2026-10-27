@@ -48,9 +48,14 @@ object ClasspathBuilder {
         entries.add(clientJar)
 
         val unresolved = ArrayList<String>()
+        // classpath 只能由这里算出，调用方传入的值一律覆盖，
+        // 否则会很自然地出现「占位符里的 cp 和 plan.classpath 不是同一个」的坑。
+        val values = HashMap(placeholders).apply {
+            this["classpath"] = entries.joinToString(":")
+        }
         fun subst(list: List<Arg>): List<String> = list
             .filter { Platform.allows(it.rules) }
-            .map { arg -> substitute(arg.value, placeholders, unresolved) }
+            .map { arg -> substitute(arg.value, values, unresolved) }
 
         return LaunchPlan(
             mainClass = meta.mainClass.orEmpty(),

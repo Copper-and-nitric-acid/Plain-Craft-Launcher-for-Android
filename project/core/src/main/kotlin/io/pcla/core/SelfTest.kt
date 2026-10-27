@@ -1,15 +1,18 @@
 package io.pcla.core
 
+import io.pcla.core.asset.AssetIndex
 import io.pcla.core.bench.GcLogParser
 import io.pcla.core.bench.GcReport
 import io.pcla.core.device.DeviceSpec
 import io.pcla.core.device.ProfileTable
 import io.pcla.core.launch.ClasspathBuilder
 import io.pcla.core.launch.DegradeLadder
+import io.pcla.core.launch.LaunchCommand
 import io.pcla.core.launch.JavaPolicy
 import io.pcla.core.launch.JvmTuner
 import io.pcla.core.launch.Platform
 import io.pcla.core.launch.VersionMeta
+import io.pcla.core.version.VersionManifest
 import io.pcla.core.launch.Lever
 import io.pcla.core.launch.RunObservation
 import io.pcla.core.launch.LaunchTarget
@@ -247,6 +250,33 @@ fun main(args: Array<String>) {
     check("natives_directory 已替换", plan.jvmArgs.any { it == "-Djava.library.path=/n" })
     check("玩家名已替换", plan.gameArgs.contains("PCLA"))
     check("启动前检查无问题", ClasspathBuilder.problems(plan).isEmpty(), ClasspathBuilder.problems(plan).joinToString())
+
+    // version manifest 与 asset index
+    val manifest = VersionManifest.parse("""
+        {"latest":{"release":"1.21.4","snapshot":"25w45a"},
+         "versions":[{"id":"1.16.5","type":"release","url":"https://x/1.16.5.json"},
+                     {"id":"25w45a","type":"snapshot","url":"https://x/25w45a.json"}]}
+    """)
+    eq("manifest 版本数", 2, manifest.size)
+    eq("命中 release", "1.16.5", VersionManifest.find(manifest, "1.16.5")?.id)
+    check("未知版本返回 null", VersionManifest.find(manifest, "9.9.9") == null)
+    val assets = AssetIndex.parse("""
+        {"objects":{"icons/icon_16x16.png":{"hash":"ab12cd34","size":143}}}
+    """)
+    eq("asset 对象数", 1, assets.size)
+    eq("asset 分片路径", "objects/ab/ab12cd34", AssetIndex.relativePath(assets[0].hash))
+
+    // 完整命令行
+    val argv = LaunchCommand.build("/rt/bin/java", plan, 2048, "/natives")
+    eq("argv 第一项是 java", "/rt/bin/java", argv[0])
+    check("带 -Xmx2048M", argv.contains("-Xmx2048M"))
+    val cpCount = argv.count { it == plan.classpath }
+    check("classpath 不重复", cpCount == 1, "count=$cpCount argv=${LaunchCommand.render(argv)}")
+    val classic = plan.copy(jvmArgs = plan.jvmArgs.filterNot { it == "-cp" || it == plan.classpath })
+    val argv2 = LaunchCommand.build("/rt/bin/java", classic, 2048, "/natives")
+    check("缺 -cp 时自动补", argv2.contains("-cp") && argv2.contains(classic.classpath))
+    check("mainClass 在 gameArgs 前", argv.indexOf(plan.mainClass) < argv.indexOf("--username"))
+    check("空格参数渲染时加引号", LaunchCommand.render(listOf("a b")).startsWith("\""))
 
     println("\n========================================")
     println("通过 $passed 项，失败 $failed 项")
