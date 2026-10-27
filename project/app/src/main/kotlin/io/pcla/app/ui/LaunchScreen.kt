@@ -232,7 +232,7 @@ internal fun LaunchScreen(heapMb: Int) {
                         view.holder.addCallback(object : SurfaceHolder.Callback {
                             override fun surfaceCreated(h: SurfaceHolder) {
                                 surface = h.surface
-                                surfaceState = "已创建 ${h.surfaceFrame.width}x${h.surfaceFrame.height}"
+                                surfaceState = "已创建 ${h.surfaceFrame.width()}x${h.surfaceFrame.height()}"
                             }
                             override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, hh: Int) {
                                 surface = h.surface
