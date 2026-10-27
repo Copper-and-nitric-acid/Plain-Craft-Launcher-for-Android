@@ -335,7 +335,8 @@ fun main(args: Array<String>) {
     check("随包 jar 在 classpath 最前", lplan.classpath.startsWith("/x/lwjgl.jar:/x/lwjgl-stb.jar"))
     check("没有下载 lwjgl 的 natives", lplan.nativeJars.none { AndroidRuntime.isLwjgl(it) })
     check("netty 也在 classpath", lplan.classpath.contains("/libs/io/netty/netty-all"))
-    eq("每套 LWJGL 都要有 jar 与 so", 8, AndroidRuntime.JARS.size)
+    eq("随包 jar 有 9 个", 9, AndroidRuntime.JARS.size)
+    check("merged-modules 排第一", AndroidRuntime.JARS.first().contains("merged-modules"))
     check("随包 so 名单覆盖 opengl", AndroidRuntime.NATIVES.any { it.contains("opengl") })
 
     println("\n========================================")

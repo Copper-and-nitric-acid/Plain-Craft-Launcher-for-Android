@@ -128,7 +128,12 @@ object GameInstaller {
         val clientJar = plan.clientJar?.let { File(root, it.relativePath).absolutePath } ?: ""
         val placeholders = ClasspathBuilder.placeholders(
             classpath = "",
-            nativesDir = "${nativesDir.absolutePath}:${lwjgl.nativesDir}",
+            nativesDir = listOf(
+                nativesDir.absolutePath,
+                lwjgl.nativesDir,
+                // jniLibs 里解出来的 libpojavexec.so 在这；glfw 的输入回调靠它
+                context.applicationInfo.nativeLibraryDir,
+            ).joinToString(":"),
             gameDir = root.absolutePath,
             assetsDir = File(root, "assets").absolutePath,
             assetsIndex = assetsName,
@@ -142,6 +147,13 @@ object GameInstaller {
         Installed(versionId, root, launchPlan, major)
     }
 
+    /** 三处 natives 都进 java.library.path：清单解出来的、随包 LWJGL 的、jniLibs 的。 */
+    fun nativesPath(context: Context, root: File): String = listOf(
+        File(root, "natives").absolutePath,
+        File(root, AndroidRuntime.BUNDLE_DIR + "/natives").absolutePath,
+        context.applicationInfo.nativeLibraryDir,
+    ).joinToString(":")
+
     /** 解包 JRE 并起进程；日志按行回调。返回的 Process 由调用方负责 waitFor。 */
     suspend fun launch(
         context: Context,
@@ -154,7 +166,7 @@ object GameInstaller {
             javaBin = runtime.javaBin.absolutePath,
             plan = installed.plan,
             heapMb = heapMb,
-            nativesDir = File(installed.root, "natives").absolutePath,
+            nativesDir = nativesPath(context, installed.root),
             extraJvm = listOf("-Djava.home=" + runtime.home.absolutePath),
         )
         onLine("$ " + LaunchCommand.render(argv).take(4000))
@@ -166,6 +178,11 @@ object GameInstaller {
                 environment()["LD_LIBRARY_PATH"] = RuntimePack.libraryPath(runtime)
                 environment()["HOME"] = installed.root.absolutePath
                 environment()["TMPDIR"] = File(installed.root, "tmp").apply { mkdirs() }.absolutePath
+                // 让 LWJGL 的 GL 桥去载 gl4es（jniLibs 里的 libgl4es_114.so），
+                // 走 GLES2 翻译 OpenGL 1.16.5 需要的那部分
+                environment()["LIBGL_NAME"] = "libgl4es_114.so"
+                environment()["LIBGL_ES"] = "2"
+                environment()["LIBGL_NOINIT"] = "0"
             }
             .start()
         Thread {

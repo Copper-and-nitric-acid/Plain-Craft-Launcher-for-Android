@@ -15,6 +15,10 @@ object AndroidRuntime {
     const val BUNDLE_DIR = "lwjgl/3.3.3"
 
     val JARS = listOf(
+        // merged-modules 是 FCL 的 Android 版核心：org.lwjgl.glfw / org.lwjgl.opengl 的
+        // Java 实现都在里面（glfw 那套要调 libpojavexec.so 的 CallbackBridge），
+        // 必须排在 lwjgl.jar 之前，否则先命中官方 jar 里的 x86 绑定。
+        "lwjgl-3.3.3-merged-modules.jar",
         "lwjgl.jar",
         "lwjgl-lwjglx.jar",
         "lwjgl-freetype.jar",
