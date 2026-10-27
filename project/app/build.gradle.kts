@@ -7,13 +7,15 @@ plugins {
 android {
     namespace = "io.pcla.app"
     compileSdk = 34
+    // 只需要 ndk-build 里的 clang + jni.h，为的是把 Surface 交给 libpojavexec.so
+    ndkVersion = "27.0.12077973"
 
     defaultConfig {
         applicationId = "io.pcla.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
-        versionName = "0.6.1-alpha"
+        versionCode = 8
+        versionName = "0.7.0-alpha"
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
@@ -27,6 +29,13 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     compileOptions {

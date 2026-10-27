@@ -58,7 +58,8 @@ object InProcessLauncher {
         // 同进程没有 bin/java 可用，JVM 由 native 自己 dlopen；这里只给参数与路径
         System.setProperty("java.home", runtime.home.absolutePath)
         System.setProperty("java.library.path", GameInstaller.nativesPath(context, installed.root))
-        System.setProperty("org.lwjgl.librarypath", File(installed.root, "natives").absolutePath)
+        // 必须和 java.library.path 同序：随包 arm64 在前，清单解出的（x86）在后
+        System.setProperty("org.lwjgl.librarypath", GameInstaller.nativesPath(context, installed.root))
 
         // native 里的 launchJVM 就是 JLI_Launch(argc, argv)：argv[0] 必须是 java 的绝对路径
         // （JLI 靠它的目录推 java.home），后面才是 JVM 参数 + 主类 + 游戏参数。

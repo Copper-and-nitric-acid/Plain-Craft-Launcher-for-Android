@@ -17,10 +17,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import android.view.Surface
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import androidx.compose.ui.unit.sp
 import io.pcla.app.GameInstaller
 import io.pcla.app.InProcessLauncher
 import io.pcla.app.RuntimePack
+import io.pcla.app.SurfaceBridge
 import io.pcla.core.launch.AndroidRuntime
 import io.pcla.core.launch.JavaPolicy
 import io.pcla.core.launch.JavaProbe
@@ -43,6 +48,10 @@ internal fun LaunchScreen(heapMb: Int) {
     var log by remember { mutableStateOf("") }
     var installed by remember { mutableStateOf<GameInstaller.Installed?>(null) }
     var busy by remember { mutableStateOf(false) }
+    // 游戏的窗口。同进程启动时由这块 SurfaceView 出让 Surface，
+    // 经 libpcla_surface.so 转交给 libpojavexec.so 里保存的 ANativeWindow。
+    var surface by remember { mutableStateOf<Surface?>(null) }
+    var surfaceState by remember { mutableStateOf("还没创建") }
 
     fun append(line: String) {
         log = if (log.length > 20000) log.takeLast(12000) + "\n" + line else log + "\n" + line
@@ -159,6 +168,37 @@ internal fun LaunchScreen(heapMb: Int) {
                 },
             )
             PclButton(
+                text = if (surface == null) "等 Surface 就绪" else "实验·交接 Surface 后启动",
+                enabled = !busy && installed != null && surface != null,
+                highlight = true,
+                onClick = {
+                    busy = true
+                    scope.launch {
+                        runCatching {
+                            val s = surface
+                            if (s == null) {
+                                append("Surface 还没创建，等屏幕那一块显示出来")
+                            } else {
+                                append("--- 交接 Surface 后同进程启动 ---")
+                                append("native 入口：" + SurfaceBridge.describe())
+                                val err = SurfaceBridge.attach(s)
+                                if (err != null) {
+                                    append("✗ Surface 交接失败：" + err)
+                                } else {
+                                    append("✓ Surface 已交给 libpojavexec.so")
+                                    append(InProcessLauncher.loadNative(context).getOrElse {
+                                        "载入失败：" + (it.message ?: it.javaClass.simpleName)
+                                    })
+                                    val code = InProcessLauncher.launch(context, installed!!, heapMb) { append(it) }
+                                    append("launchJVM 返回 $code")
+                                }
+                            }
+                        }.onFailure { append("失败：" + (it.message ?: it.javaClass.simpleName)) }
+                        busy = false
+                    }
+                },
+            )
+            PclButton(
                 text = "检查",
                 enabled = !busy && installed != null,
                 onClick = {
@@ -182,6 +222,28 @@ internal fun LaunchScreen(heapMb: Int) {
                     append("assets 里 merged-modules：" + runCatching {
                         context.assets.open("lwjgl/3.3.3/lwjgl-3.3.3-merged-modules.jar").use { "在，${it.available()} 字节" }
                     }.getOrElse { "打不开：" + (it.message ?: "") })
+                },
+            )
+            PclField("窗口 Surface", surfaceState)
+            AndroidView(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                factory = { ctx ->
+                    SurfaceView(ctx).also { view ->
+                        view.holder.addCallback(object : SurfaceHolder.Callback {
+                            override fun surfaceCreated(h: SurfaceHolder) {
+                                surface = h.surface
+                                surfaceState = "已创建 ${h.surfaceFrame.width}x${h.surfaceFrame.height}"
+                            }
+                            override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, hh: Int) {
+                                surface = h.surface
+                                surfaceState = "已创建 ${w}x${hh}"
+                            }
+                            override fun surfaceDestroyed(h: SurfaceHolder) {
+                                surface = null
+                                surfaceState = "已销毁"
+                            }
+                        })
+                    }
                 },
             )
             Text(
