@@ -14,7 +14,7 @@ android {
         applicationId = "io.pcla.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 8
+        versionCode = 9
         versionName = "0.7.0-alpha"
         ndk {
             abiFilters += listOf("arm64-v8a")

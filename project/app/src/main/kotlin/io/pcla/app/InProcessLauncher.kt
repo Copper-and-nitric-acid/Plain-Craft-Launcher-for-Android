@@ -38,9 +38,9 @@ object InProcessLauncher {
 
     /** 只装库、不启 VM，用来单独验证符号能否解析。 */
     fun loadNative(context: Context): Result<String> = runCatching {
-        System.loadLibrary("pojavexec")
+        val libs = NativeBootstrap.loadLibs()
         val m = VMLauncher::class.java.getDeclaredMethod("launchJVM", Array<String>::class.java)
-        "libpojavexec.so 已载入，launchJVM 方法已找到：" + m.name
+        "原生库：" + libs.joinToString("、") + "；launchJVM 已找到：" + m.name
     }
 
     /**
@@ -53,13 +53,17 @@ object InProcessLauncher {
         heapMb: Int,
         onLine: (String) -> Unit,
     ): Int? {
-        System.loadLibrary("pojavexec")
+        NativeBootstrap.loadLibs().forEach { onLine("原生库 $it") }
         val runtime = RuntimePack.ensure(context, installed.javaMajor)
         // 同进程没有 bin/java 可用，JVM 由 native 自己 dlopen；这里只给参数与路径
         System.setProperty("java.home", runtime.home.absolutePath)
         System.setProperty("java.library.path", GameInstaller.nativesPath(context, installed.root))
         // 必须和 java.library.path 同序：随包 arm64 在前，清单解出的（x86）在后
         System.setProperty("org.lwjgl.librarypath", GameInstaller.nativesPath(context, installed.root))
+
+        // FCL 在 launchMinecraft 之前做的 native 准备：环境变量 + 把 JRE 的 .so
+        // 全部预 dlopen 进全局符号表。不做这步，JLI 里按 soname 找 libjli.so 会失败。
+        NativeBootstrap.prepare(context, runtime, installed.root).forEach { onLine(it) }
 
         // native 里的 launchJVM 就是 JLI_Launch(argc, argv)：argv[0] 必须是 java 的绝对路径
         // （JLI 靠它的目录推 java.home），后面才是 JVM 参数 + 主类 + 游戏参数。
