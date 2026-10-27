@@ -66,8 +66,8 @@ fun PclaApp() {
                 r == null -> CenteredMessage("正在读取 GPU 与内存…", null)
                 tab == 0 -> HomeScreen(r) { reload++ }
                 tab == 1 -> DegradeScreen(r.spec, r.profile)
-                3 -> LaunchScreen(r.configs[r.recommendation.version]?.heapMb ?: 2048)
-                else -> DownloadScreen()
+                tab == 2 -> DownloadScreen()
+                else -> LaunchScreen(r.configs[r.recommendation.version]?.heapMb ?: 2048)
             }
         }
     }
