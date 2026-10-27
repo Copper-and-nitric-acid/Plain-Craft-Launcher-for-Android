@@ -4,9 +4,12 @@ import io.pcla.core.bench.GcLogParser
 import io.pcla.core.bench.GcReport
 import io.pcla.core.device.DeviceSpec
 import io.pcla.core.device.ProfileTable
+import io.pcla.core.launch.ClasspathBuilder
 import io.pcla.core.launch.DegradeLadder
 import io.pcla.core.launch.JavaPolicy
 import io.pcla.core.launch.JvmTuner
+import io.pcla.core.launch.Platform
+import io.pcla.core.launch.VersionMeta
 import io.pcla.core.launch.Lever
 import io.pcla.core.launch.RunObservation
 import io.pcla.core.launch.LaunchTarget
@@ -214,6 +217,36 @@ fun main(args: Array<String>) {
     eq("1.20.5 → Java 21", 21, JavaPolicy.requiredMajor("1.20.5"))
     eq("1.21.4 → Java 21", 21, JavaPolicy.requiredMajor("1.21.4"))
     eq("快照版本回落 Java 8", 8, JavaPolicy.requiredMajor("23w45a"))
+
+    // 版本 json → 启动命令行
+    val metaJson = """
+        {"id":"1.16.5","mainClass":"net.minecraft.client.main.Main","assets":"1.16",
+         "javaVersion":{"majorVersion":8},
+         "arguments":{"jvm":["-Djava.library.path=${'$'}{natives_directory}","-cp","${'$'}{classpath}"],
+                      "game":["--username","${'$'}{auth_player_name}"]},
+         "libraries":[
+          {"name":"org.lwjgl:lwjgl:3.2.2","downloads":{"artifact":{"path":"org/lwjgl/lwjgl/3.2.2/lwjgl-3.2.2.jar","sha1":"x"}},
+           "rules":[{"action":"allow","os":{"name":"linux"}},{"action":"disallow","os":{"name":"windows"}}]},
+          {"name":"org.lwjgl:lwjgl:3.2.2:natives-linux","downloads":{"classifiers":{"natives-linux":{"path":"org/lwjgl/lwjgl/3.2.2/lwjgl-3.2.2-natives-linux.jar","sha1":"y"}}},"natives":{"linux":"natives-linux"}},
+          {"name":"com.sun:winonly:1.0","downloads":{"artifact":{"path":"com/sun/winonly/1.0/winonly-1.0.jar"}},"rules":[{"action":"allow","os":{"name":"windows"}}]}
+         ]}
+    """
+    val meta = VersionMeta.parse(metaJson)
+    eq("解析出 mainClass", "net.minecraft.client.main.Main", meta.mainClass)
+    eq("解析出 java 大版本", 8, meta.javaMajor)
+    eq("库声明数量", 3, meta.libraries.size)
+    check("windows 专属库被 rules 排除", !Platform.allows(meta.libraries[2].rules))
+    val ph = ClasspathBuilder.placeholders("CP", "/n", "/g", "/a", "1.16", "1.16.5")
+    val plan = ClasspathBuilder.build(meta, "/libs", "/g/client.jar", ph)
+    check("classpath 含 lwjgl", plan.classpath.contains("lwjgl-3.2.2.jar"))
+    check("classpath 含 client.jar", plan.classpath.endsWith("client.jar"))
+    check("windows 库不进 classpath", !plan.classpath.contains("winonly"))
+    eq("natives 只收 1 个", 1, plan.nativeJars.size)
+    check("natives 路径正确", plan.nativeJars[0].endsWith("lwjgl-3.2.2-natives-linux.jar"))
+    eq("无未替换占位符", 0, plan.unresolved.size)
+    check("natives_directory 已替换", plan.jvmArgs.any { it == "-Djava.library.path=/n" })
+    check("玩家名已替换", plan.gameArgs.contains("PCLA"))
+    check("启动前检查无问题", ClasspathBuilder.problems(plan).isEmpty(), ClasspathBuilder.problems(plan).joinToString())
 
     println("\n========================================")
     println("通过 $passed 项，失败 $failed 项")
