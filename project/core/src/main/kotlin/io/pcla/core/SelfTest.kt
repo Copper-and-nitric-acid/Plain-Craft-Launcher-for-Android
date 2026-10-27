@@ -9,6 +9,7 @@ import io.pcla.core.game.GamePlan
 import io.pcla.core.game.GameVerifier
 import io.pcla.core.game.NativeExtractor
 import io.pcla.core.launch.AndroidRuntime
+import io.pcla.core.launch.AwtRuntime
 import io.pcla.core.launch.Preflight
 import io.pcla.core.launch.ClasspathBuilder
 import io.pcla.core.launch.DegradeLadder
@@ -344,7 +345,7 @@ fun main(args: Array<String>) {
     val goodPlan = ClasspathBuilder.build(
         stripped, "/libs", "/c.jar",
         ClasspathBuilder.placeholders("", "/n:/m:/j", "/g", "/a", "1.16", "1.16.5"),
-        listOf("/x/lwjgl-3.3.3-merged-modules.jar"),
+        listOf("/x/lwjgl-3.3.3-merged-modules.jar") + AwtRuntime.JARS.map { "/x/" + it },
     )
     val goodChecks = Preflight.run(goodPlan, AndroidRuntime.JARS, listOf("/n", "/m", "/j"), listOf("libpojavexec.so", "libgl4es_114.so"), 8, "/n:/m:/j")
     check("好计划全部通过", goodChecks.all { it.ok })
@@ -353,6 +354,18 @@ fun main(args: Array<String>) {
     check("少了 merged-modules 会被抓出来", badChecks.any { !it.ok && it.name.contains("merged-modules") })
     check("版本错配会被抓出来", badChecks.any { !it.ok && it.name.contains("Java 大版本") })
     check("自检渲染带 ✓/✗", Preflight.render(goodChecks).startsWith("✓"))
+
+    // AWT：Caciocavallo 的 jar 与三个启动属性
+    eq("cacio 两个 jar", 2, AwtRuntime.JARS.size)
+    check("cacio 顺序 shared 在前", AwtRuntime.JARS.first().contains("shared"))
+    val props = AwtRuntime.jvmProps(1280, 720)
+    check("关掉 headless", props.contains("-Djava.awt.headless=false"))
+    check("指定 CTC 工具包", props.any { it.contains(AwtRuntime.TOOLKIT) })
+    check("带上屏幕尺寸", props.any { it.startsWith("-Dcacio.managed.screensize=1280x720") })
+    val awtPlan = ClasspathBuilder.build(stripped, "/libs", "/c.jar", lplace, AwtRuntime.JARS.map { "/x/" + it })
+    check("cacio 在 classpath 里", awtPlan.classpath.contains("cacio-"))
+    val awtChecks = Preflight.run(awtPlan, AwtRuntime.JARS, listOf("/n", "/m", "/j"), emptyList(), 8, "/n:/m:/j")
+    check("AWT 检查项存在", awtChecks.any { it.name.contains("AWT") })
 
     println("\n========================================")
     println("通过 $passed 项，失败 $failed 项")

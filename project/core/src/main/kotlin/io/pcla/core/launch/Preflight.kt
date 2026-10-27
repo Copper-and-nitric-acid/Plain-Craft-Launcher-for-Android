@@ -33,6 +33,11 @@ object Preflight {
             "合并模块提供 org.lwjgl.glfw；官方 lwjgl.jar 里没有这个包",
         )
         out += Check(
+            "AWT 工具包在 classpath",
+            cp.any { it.contains("cacio") },
+            "没有 caciocavallo 时 AWT 会走 headless，建窗口必抛 HeadlessException",
+        )
+        out += Check(
             "主类已确定",
             plan.mainClass.isNotBlank(),
             plan.mainClass,

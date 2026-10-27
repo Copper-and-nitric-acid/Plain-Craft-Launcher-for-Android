@@ -6,6 +6,7 @@ import io.pcla.core.game.GamePlan
 import io.pcla.core.game.NativeExtractor
 import io.pcla.core.game.RemoteFile
 import io.pcla.core.launch.AndroidRuntime
+import io.pcla.core.launch.AwtRuntime
 import io.pcla.core.launch.ClasspathBuilder
 import io.pcla.core.launch.JavaPolicy
 import io.pcla.core.launch.LaunchCommand
@@ -167,7 +168,7 @@ object GameInstaller {
             plan = installed.plan,
             heapMb = heapMb,
             nativesDir = nativesPath(context, installed.root),
-            extraJvm = listOf("-Djava.home=" + runtime.home.absolutePath),
+            extraJvm = listOf("-Djava.home=" + runtime.home.absolutePath) + AwtRuntime.jvmProps(1280, 720),
         )
         onLine("$ " + LaunchCommand.render(argv).take(4000))
         val process = ProcessBuilder(argv)

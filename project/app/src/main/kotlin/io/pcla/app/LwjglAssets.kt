@@ -37,6 +37,19 @@ object LwjglAssets {
             }
             target.setExecutable(true, false)
         }
-        return Installed(AndroidRuntime.JARS.map { File(out, it).absolutePath }, natives.absolutePath, copied)
+        val cacio = File(root, io.pcla.core.launch.AwtRuntime.BUNDLE_DIR).apply { mkdirs() }
+        io.pcla.core.launch.AwtRuntime.JARS.forEach { name ->
+            val asset = io.pcla.core.launch.AwtRuntime.BUNDLE_DIR + "/" + name
+            val target = File(cacio, name)
+            if (!target.isFile) {
+                context.assets.open(asset).use { input -> target.outputStream().use { input.copyTo(it) } }
+                copied++
+            }
+        }
+        return Installed(
+            AndroidRuntime.JARS.map { File(out, it).absolutePath } + io.pcla.core.launch.AwtRuntime.JARS.map { File(cacio, it).absolutePath },
+            natives.absolutePath,
+            copied,
+        )
     }
 }
