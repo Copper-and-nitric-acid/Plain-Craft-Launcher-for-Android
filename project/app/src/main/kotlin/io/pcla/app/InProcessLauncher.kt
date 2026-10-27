@@ -46,13 +46,26 @@ object InProcessLauncher {
         System.setProperty("java.library.path", GameInstaller.nativesPath(context, installed.root))
         System.setProperty("org.lwjgl.librarypath", File(installed.root, "natives").absolutePath)
 
+        // native 里的 launchJVM 就是 JLI_Launch(argc, argv)：argv[0] 必须是 java 的绝对路径
+        // （JLI 靠它的目录推 java.home），后面才是 JVM 参数 + 主类 + 游戏参数。
+        // 所以这里**不能**去掉 argv[0]，和 exec 路径用同一份命令。
         val argv = LaunchCommand.build(
             javaBin = runtime.javaBin.absolutePath,
             plan = installed.plan,
             heapMb = heapMb,
             nativesDir = GameInstaller.nativesPath(context, installed.root),
             extraJvm = listOf("-Djava.home=" + runtime.home.absolutePath) + AwtRuntime.jvmProps(1280, 720),
-        ).drop(1) // 去掉可执行文件本身，native 只要 JVM 参数
+        )
+        // Pojav 的 jre_launcher.c 用 dlopen("libjli.so") 取 JLI_Launch；
+        // App 进程的 LD_LIBRARY_PATH 改不了，只能先把关键 so 以绝对路径载进来，
+        // 之后 dlopen 按 soname 就能命中已加载的那份。
+        listOf("libjli.so", "libjvm.so", "libjava.so", "libjimage.so", "libverify.so", "libzip.so")
+            .map { File(runtime.home, "lib/$it") }
+            .filter { it.isFile }
+            .forEach { so ->
+                runCatching { System.load(so.absolutePath) }
+                    .onFailure { onLine("预载 " + so.name + " 失败：" + (it.message ?: "")) }
+            }
         onLine("同进程启动：${argv.size} 个参数，主类 " + installed.plan.mainClass)
         onLine(argv.take(6).joinToString(" "))
         val started = System.currentTimeMillis()

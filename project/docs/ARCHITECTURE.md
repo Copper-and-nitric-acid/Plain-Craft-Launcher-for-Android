@@ -56,7 +56,17 @@ Android 的 `Surface` 不能跨进程传对象，只能传 `ANativeWindow*`（�
 
 ## 三、两条可走的路
 
-### B（干净，需 NDK）：同进程起 JVM
+### B（同进程起 JVM，已有第一版）
+
+Pojav 的 `jre_launcher.c`（GPLv2+Classpath，公开仓库可读）证实：
+`Java_com_oracle_dalvik_VMLauncher_launchJVM` 只是把字符串数组转成 `argc/argv`，
+然后 `dlopen("libjli.so")` → `dlsym("JLI_Launch")` → 当命令行用。
+推论有两条，都已写进 `InProcessLauncher`：
+1. `argv[0]` 必须是 `bin/java` 的绝对路径（JLI 靠它推 `java.home`），不能丢；
+2. App 进程的 `LD_LIBRARY_PATH` 改不了，所以先用绝对路径 `System.load` 预载
+   `libjli/libjvm/libjava/libjimage/libverify/libzip`，之后按 soname 的 `dlopen` 才命中。
+
+### B'（要写原生代码的版本）
 
 `Java_com_oracle_dalvik_VMLauncher_launchJVM` 这个符号在包里，正是 Pojav 的做法：
 不 exec 外部 `java`，而是在 App 进程内 `dlopen libjvm.so` 起 JVM。
