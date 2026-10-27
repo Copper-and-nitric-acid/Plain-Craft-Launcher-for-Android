@@ -6,6 +6,7 @@
 #include <jni.h>
 #include <dlfcn.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <android/log.h>
 
 #define TAG "PclaNative"
