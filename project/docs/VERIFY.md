@@ -84,3 +84,29 @@ java -cp "/tmp/build/dl.jar:/tmp/okhttp/okhttp-4.12.0.jar:/tmp/okhttp/okio-jvm-3
 没验证的：GLFW 那一层。清单被摘掉后 `org.lwjgl.glfw` 由随包 3.3.3 提供，但 3.3.3 的
 `liblwjgl.so` 是否覆盖 1.16.5 用到的 GLFW 符号，只能在真机上跑才知道；如果启动时抛
 `UnsatisfiedLinkError: org.lwjgl.glfw.GLFW.*`，就是这一层缺东西。
+
+## 2026-10-27 晚：到哪一步了（截止 20:00）
+
+能跑通的：
+
+1. 拉 Mojang/BMCLAPI 清单，选 Java 大版本（1.16.5 → 8）；
+2. 下载 1.16.5 的 2664 个文件（366 MB，4 路并发、sha1 跳过已存在）；
+3. JRE 两层解包（universal + bin），`bin/java` 就位；
+4. classpath 拼装：清单库 + 随包 LWJGL 3.3.3（merged-modules 在最前）+ Cacio 两个 jar；
+5. `-Djava.library.path` 三段、`-Djava.home`、`LD_LIBRARY_PATH`、gl4es 三个环境变量；
+6. 启动 `bin/java` 并把 stdout/stderr 逐行回传。
+
+没跑通的，也是唯一的大缺口：**窗口**。
+
+证据链：
+- 1.16.5 的原生库是 `natives-linux`（x86_64），arm64 手机加载必失败 → 已换成随包 3.3.3；
+- `org.lwjgl.glfw` 在官方 jar 里不存在，在 `lwjgl-3.3.3-merged-modules.jar` 里存在 → 已排最前；
+- 该 GLFW 实现依赖 `libpojavexec.so` 的 `CallbackBridge` 四个 native 方法（已验证符号）；
+- **但** `CallbackBridge.setupBridgeWindow` 在随包 jar 里不存在；`libpojavexec.so` 里导出的是
+  `Java_org_lwjgl_glfw_CallbackBridge_setupBridgeWindow` 与
+  `Java_com_tungsten_fclauncher_bridge_FCLBridge_setupBridgeSurfaceAWT`、
+  `Java_android_view_Surface_nativeGetBridgeSurfaceAWT`；
+- 也就是说 Surface 由 FCL 的 App 侧 Java 交给 native，而 FCL 公开仓库已不含 Java 源码
+  （1.3.4.2 标签下 0 个 .java），这条桥今晚拿不到。
+
+结论：起 JVM 之前的每一步都齐了；`glfwCreateWindow` 之后缺 Surface 交接。
