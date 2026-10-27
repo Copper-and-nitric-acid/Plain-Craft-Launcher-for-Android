@@ -9,6 +9,7 @@ import io.pcla.core.game.GamePlan
 import io.pcla.core.game.GameVerifier
 import io.pcla.core.game.NativeExtractor
 import io.pcla.core.launch.AndroidRuntime
+import io.pcla.core.launch.Preflight
 import io.pcla.core.launch.ClasspathBuilder
 import io.pcla.core.launch.DegradeLadder
 import io.pcla.core.launch.LaunchCommand
@@ -320,7 +321,7 @@ fun main(args: Array<String>) {
 
     // 手机上换 LWJGL：清单里 org.lwjgl 全去掉，随包的 jar 排在最前
     val lmeta = VersionMeta.parse(
-        """{"id":"t","libraries":["""
+        """{"id":"t","mainClass":"net.minecraft.client.main.Main","arguments":{"game":["--username","PCLA","--version","1.16.5","--gameDir","/g","--assetsDir","/a","--assetIndex","1.16"]},"libraries":["""
             + """{"name":"org.lwjgl:lwjgl:3.2.2","downloads":{"artifact":{"path":"org/lwjgl/lwjgl/3.2.2/lwjgl-3.2.2.jar","url":"https://x/lwjgl.jar"}}},"""
             + """{"name":"org.lwjgl:lwjgl-glfw:3.2.2","downloads":{"classifiers":{"natives-linux":{"path":"org/lwjgl/lwjgl-glfw/3.2.2/lwjgl-glfw-3.2.2-natives-linux.jar","url":"https://x/g.jar"}}}},"""
             + """{"name":"io.netty:netty-all:4.1.25","downloads":{"artifact":{"path":"io/netty/netty-all/4.1.25/netty-all-4.1.25.jar","url":"https://x/n.jar"}}}"""
@@ -338,6 +339,20 @@ fun main(args: Array<String>) {
     eq("随包 jar 有 9 个", 9, AndroidRuntime.JARS.size)
     check("merged-modules 排第一", AndroidRuntime.JARS.first().contains("merged-modules"))
     check("随包 so 名单覆盖 opengl", AndroidRuntime.NATIVES.any { it.contains("opengl") })
+
+    // 启动前自检：故意做一份“好”的与一份“坏”的
+    val goodPlan = ClasspathBuilder.build(
+        stripped, "/libs", "/c.jar",
+        ClasspathBuilder.placeholders("", "/n:/m:/j", "/g", "/a", "1.16", "1.16.5"),
+        listOf("/x/lwjgl-3.3.3-merged-modules.jar"),
+    )
+    val goodChecks = Preflight.run(goodPlan, AndroidRuntime.JARS, listOf("/n", "/m", "/j"), listOf("libpojavexec.so", "libgl4es_114.so"), 8, "/n:/m:/j")
+    check("好计划全部通过", goodChecks.all { it.ok })
+    val badPlan = ClasspathBuilder.build(stripped, "/libs", "/c.jar", ClasspathBuilder.placeholders("", "/n", "/g", "/a", "1.16", "1.16.5"))
+    val badChecks = Preflight.run(badPlan, emptyList(), listOf("/n"), emptyList(), 17)
+    check("少了 merged-modules 会被抓出来", badChecks.any { !it.ok && it.name.contains("merged-modules") })
+    check("版本错配会被抓出来", badChecks.any { !it.ok && it.name.contains("Java 大版本") })
+    check("自检渲染带 ✓/✗", Preflight.render(goodChecks).startsWith("✓"))
 
     println("\n========================================")
     println("通过 $passed 项，失败 $failed 项")

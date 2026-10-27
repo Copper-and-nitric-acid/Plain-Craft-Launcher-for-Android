@@ -20,6 +20,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.pcla.app.GameInstaller
 import io.pcla.app.RuntimePack
+import io.pcla.core.launch.AndroidRuntime
+import io.pcla.core.launch.JavaPolicy
+import io.pcla.core.launch.Preflight
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -85,6 +89,32 @@ internal fun LaunchScreen(heapMb: Int) {
                         }.onFailure { append("启动失败：" + (it.message ?: it.javaClass.simpleName)) }
                         busy = false
                     }
+                },
+            )
+            PclButton(
+                text = "检查",
+                enabled = !busy && installed != null,
+                onClick = {
+                    val ready = installed ?: return@PclButton
+                    val root = ready.root
+                    val nativeDir = GameInstaller.nativesPath(context, root)
+                    val nativeFiles = nativeDir.split(":").flatMap { d ->
+                        File(d).listFiles()?.map { it.name } ?: emptyList()
+                    }
+                    val checks = Preflight.run(
+                        plan = ready.plan,
+                        jarNames = AndroidRuntime.JARS,
+                        nativePaths = nativeDir.split(":"),
+                        nativeFiles = nativeFiles,
+                        expectedMajor = JavaPolicy.requiredMajor(version),
+                        libraryPath = nativeDir,
+                    )
+                    append("--- 启动前检查 ---")
+                    append(Preflight.render(checks))
+                    append("nativeLibraryDir 里 ${File(context.applicationInfo.nativeLibraryDir).listFiles()?.size ?: 0} 个文件")
+                    append("assets 里 merged-modules：" + runCatching {
+                        context.assets.open("lwjgl/3.3.3/lwjgl-3.3.3-merged-modules.jar").use { "在，${it.available()} 字节" }
+                    }.getOrElse { "打不开：" + (it.message ?: "") })
                 },
             )
             Text(
