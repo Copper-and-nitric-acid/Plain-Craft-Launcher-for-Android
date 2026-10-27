@@ -22,6 +22,7 @@ import io.pcla.app.GameInstaller
 import io.pcla.app.RuntimePack
 import io.pcla.core.launch.AndroidRuntime
 import io.pcla.core.launch.JavaPolicy
+import io.pcla.core.launch.JavaProbe
 import io.pcla.core.launch.Preflight
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -87,6 +88,45 @@ internal fun LaunchScreen(heapMb: Int) {
                                 GameInstaller.launch(context, ready, heapMb) { line -> append(line) }
                             }
                         }.onFailure { append("启动失败：" + (it.message ?: it.javaClass.simpleName)) }
+                        busy = false
+                    }
+                },
+            )
+            // 不需要 366MB 的游戏文件，也能先确认「包里的 JRE 到底能不能跑」
+            PclButton(
+                text = "JRE 自检",
+                enabled = !busy,
+                onClick = {
+                    busy = true
+                    scope.launch {
+                        runCatching {
+                            withContext(Dispatchers.IO) {
+                                val major = JavaPolicy.requiredMajor(version)
+                                append("--- JRE 自检（$version 需要 Java $major）---")
+                                val runtime = RuntimePack.ensure(context, major) { mb ->
+                                    stage = "解包 JRE $major · ${mb / 1048576}MB"
+                                }
+                                append("java: " + runtime.javaBin.absolutePath)
+                                append("存在=" + runtime.javaBin.exists() +
+                                    " 可执行=" + runtime.javaBin.canExecute() +
+                                    " 大小=" + runtime.javaBin.length())
+                                val argv = listOf(runtime.javaBin.absolutePath) + JavaProbe.ARGS
+                                val proc = ProcessBuilder(argv)
+                                    .redirectErrorStream(true)
+                                    .apply {
+                                        environment()["LD_LIBRARY_PATH"] = RuntimePack.libraryPath(runtime)
+                                        environment()["HOME"] = runtime.home.absolutePath
+                                    }
+                                    .start()
+                                val text = proc.inputStream.bufferedReader().readText()
+                                val done = proc.waitFor()
+                                append("退出码 $done")
+                                append(text.trim().ifEmpty { "（没有任何输出）" })
+                                val out = JavaProbe.parse(text)
+                                append(JavaProbe.render(out, major))
+                                JavaProbe.problems(major, out).forEach { append("✗ " + it) }
+                            }
+                        }.onFailure { append("自检失败：" + (it.message ?: it.javaClass.simpleName)) }
                         busy = false
                     }
                 },

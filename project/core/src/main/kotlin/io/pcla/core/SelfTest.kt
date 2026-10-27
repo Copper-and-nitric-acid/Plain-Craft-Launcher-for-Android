@@ -16,6 +16,7 @@ import io.pcla.core.launch.DegradeLadder
 import io.pcla.core.launch.LaunchCommand
 import io.pcla.core.launch.JavaPolicy
 import io.pcla.core.launch.JvmTuner
+import io.pcla.core.launch.JavaProbe
 import io.pcla.core.launch.Platform
 import io.pcla.core.launch.VersionMeta
 import io.pcla.core.version.VersionManifest
@@ -366,6 +367,27 @@ fun main(args: Array<String>) {
     check("cacio 在 classpath 里", awtPlan.classpath.contains("cacio-"))
     val awtChecks = Preflight.run(awtPlan, AwtRuntime.JARS, listOf("/n", "/m", "/j"), emptyList(), 8, "/n:/m:/j")
     check("AWT 检查项存在", awtChecks.any { it.name.contains("AWT") })
+
+
+    // java -version 的认版本逻辑：JRE 解包坏没坏，先看这一行
+    val v8 = JavaProbe.parse("""
+        openjdk version "1.8.0_442"
+        OpenJDK Runtime Environment (build 1.8.0_442-b06)
+    """.trimIndent())
+    eq("认出 Java 8 的版本号", "1.8.0_442", v8.version)
+    eq("1.8.0_442 → 大版本 8", 8, v8.major)
+    val v17 = JavaProbe.parse("openjdk version \"17.0.9\" 2023-10-17\nOpenJDK 64-Bit Server VM")
+    eq("17.0.9 → 大版本 17", 17, v17.major)
+    eq("21 → 大版本 21", 21, JavaProbe.majorOf("21"))
+    eq("认不出返回 null", null, JavaProbe.majorOf("abc"))
+    val empty = JavaProbe.parse("Error: could not find libjli.so")
+    check("没有版本行就算失败", !empty.ok)
+    check("缺失的报错只说一句", JavaProbe.problems(8, empty).size == 1)
+    check("版本对得上没问题", JavaProbe.problems(8, v8).isEmpty())
+    val tooHigh = JavaProbe.problems(8, v17)
+    check("高版本被抓出来", tooHigh.any { it.contains("对不上") })
+    check("高版本提示 class file major", tooHigh.any { it.contains("Unsupported class file major version") })
+    check("渲染带需要的大版本", JavaProbe.render(v8, 8).contains("8"))
 
     println("\n========================================")
     println("通过 $passed 项，失败 $failed 项")
