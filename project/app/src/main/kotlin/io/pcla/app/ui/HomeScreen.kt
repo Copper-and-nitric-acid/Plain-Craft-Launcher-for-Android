@@ -44,6 +44,7 @@ internal fun HomeScreen(report: Report, onReload: () -> Unit) {
             )
         }
         NativeCard()
+        RuntimeCard(io.pcla.core.launch.JavaPolicy.requiredMajor(report.recommendation.version ?: "1.16.5"))
         RankedVersions(report)
         report.configs[report.recommendation.version]?.let { DiagCard(it) }
         Spacer(Modifier.width(1.dp))

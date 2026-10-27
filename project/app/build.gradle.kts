@@ -12,8 +12,8 @@ android {
         applicationId = "io.pcla.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.3.0-alpha"
+        versionCode = 3
+        versionName = "0.4.0-alpha"
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
@@ -47,6 +47,7 @@ android {
 dependencies {
     implementation(project(":core"))
     implementation(project(":download"))
+    implementation("org.tukaani:xz:1.9")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("androidx.activity:activity-compose:1.9.2")
