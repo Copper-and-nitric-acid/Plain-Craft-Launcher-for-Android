@@ -5,6 +5,7 @@ import io.pcla.core.bench.GcReport
 import io.pcla.core.device.DeviceSpec
 import io.pcla.core.device.ProfileTable
 import io.pcla.core.launch.DegradeLadder
+import io.pcla.core.launch.JavaPolicy
 import io.pcla.core.launch.JvmTuner
 import io.pcla.core.launch.Lever
 import io.pcla.core.launch.RunObservation
@@ -203,6 +204,16 @@ fun main(args: Array<String>) {
         spec, profile, "1.16.5",
     )
     check("采样不足不下结论", planD.isEmpty, planD.heapVerdict)
+
+    // Java 版本策略：错了会 Unsupported class file major version
+    eq("1.12.2 → Java 8", 8, JavaPolicy.requiredMajor("1.12.2"))
+    eq("1.16.5 → Java 8", 8, JavaPolicy.requiredMajor("1.16.5"))
+    eq("1.18 → Java 17", 17, JavaPolicy.requiredMajor("1.18"))
+    eq("1.19.2 → Java 17", 17, JavaPolicy.requiredMajor("1.19.2"))
+    eq("1.20.1 → Java 17", 17, JavaPolicy.requiredMajor("1.20.1"))
+    eq("1.20.5 → Java 21", 21, JavaPolicy.requiredMajor("1.20.5"))
+    eq("1.21.4 → Java 21", 21, JavaPolicy.requiredMajor("1.21.4"))
+    eq("快照版本回落 Java 8", 8, JavaPolicy.requiredMajor("23w45a"))
 
     println("\n========================================")
     println("通过 $passed 项，失败 $failed 项")
