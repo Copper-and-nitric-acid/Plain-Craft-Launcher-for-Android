@@ -53,3 +53,17 @@ java -cp "/tmp/build/dl.jar:/tmp/okhttp/okhttp-4.12.0.jar:/tmp/okhttp/okio-jvm-3
 - [ ] **git wrapper 实跑**：`gradlew` 在 /sdcard 是 noexec，只校验过字节与 zip 结构
 - [ ] **接入 FCL 后能否启动游戏**：连 FCL 原版都没编出来
 - [ ] **okhttp 在 Android 上的行为**：本机是 JVM 17 跑通，Android 还有 R8/desugaring/证书差异
+
+## JRE 运行时（2026-10-27 复查）
+
+- 仓库里每套 Java 是**两层**：`universal.tar.xz`（rt.jar.pack、lib/security、字体等）
+  + `bin-arm64.tar.xz`（java 可执行与 libjli/libjvm）。之前只留了 bin 那层，
+  解出来缺 `lib/` 里的大半内容和 `lib/aarch64/server/libjvm.so`，**必然起不来**。
+- 已从 git 历史恢复四套 `universal.tar.xz`（jre8 9.5MB / jre17 16.3MB / jre21 18.1MB / jre25 31.3MB）
+  与 `version` 文件；`RuntimePack` 改为按 universal → bin 顺序叠解。
+- 已验证：jre8 的 universal 85 条目 + bin 49 条目，`bin/java`、`lib/aarch64/server/libjvm.so`、`release` 都在，
+  xz 魔数正确。
+- **未验证**：在 Android 应用进程里真跑起来。本容器是 Ubuntu 用户态，缺 `/linkerconfig/ld.config.txt`，
+  执行 Android 版 `bin/java` 会报 `CANNOT LINK EXECUTABLE: library "libjli.so" not found`
+  ——这是环境差异，不是包的问题。真机能否起来只能靠 APK 实测。
+- Java 8 是 `rt.jar.pack` 打包格式，运行时要 `unpack200`（`libunpack200.so` 已在 jniLibs 里）。

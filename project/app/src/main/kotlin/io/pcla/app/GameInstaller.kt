@@ -147,11 +147,18 @@ object GameInstaller {
             plan = installed.plan,
             heapMb = heapMb,
             nativesDir = File(installed.root, "natives").absolutePath,
+            extraJvm = listOf("-Djava.home=" + runtime.home.absolutePath),
         )
         onLine("$ " + LaunchCommand.render(argv).take(4000))
         val process = ProcessBuilder(argv)
             .directory(installed.root)
             .redirectErrorStream(true)
+            .apply {
+                // Android 版 JRE 是 bionic 链接的，不设这两项连 libjli 都找不到
+                environment()["LD_LIBRARY_PATH"] = RuntimePack.libraryPath(runtime)
+                environment()["HOME"] = installed.root.absolutePath
+                environment()["TMPDIR"] = File(installed.root, "tmp").apply { mkdirs() }.absolutePath
+            }
             .start()
         Thread {
             process.inputStream.bufferedReader().forEachLine { line -> onLine(line) }

@@ -9,7 +9,11 @@ import java.nio.file.Files
 /**
  * 内置 JRE 的解包器。
  *
- * assets 里是 FCL 那套 `bin-arm64.tar.xz`（每套 4–7 MB），首次启动时解到
+ * assets 里是 FCL 那套运行时，一条 Java 拆成两份：
+ *   universal.tar.xz（rt.jar.pack / lib/security / 字体等公共部分，9–33 MB）
+ *   bin-arm64.tar.xz（java 可执行文件与 libjli、libjvm，4–7 MB）
+ * 必须按 universal → bin 的顺序叠着解，只解 bin 会缺 lib/modules 之外的一大堆东西。
+ * 首次启动时解到
  * filesDir/runtime/jre<N>/，之后直接复用。不放进 assets 直接当 java 用，
  * 因为 assets 是压缩流，不能 exec，也没有可执行位。
  */
@@ -40,19 +44,37 @@ object RuntimePack {
         staging.deleteRecursively()
         staging.mkdirs()
 
-        context.assets.open("java/jre$major/bin-arm64.tar.xz").use { raw ->
-            XZInputStream(raw).use { xz ->
-                untar(CountingStream(xz, onProgress), staging)
+        // universal 是公共部分，bin 是这台机器的可执行文件与 libjvm，顺序不能反：
+        // bin 里的 lib/*.so 会覆盖 universal 里的同名文件（如果有）。
+        listOf("universal.tar.xz", "bin-arm64.tar.xz").forEach { name ->
+            val asset = "java/jre$major/$name"
+            if (!assetExists(context, asset)) {
+                if (name == "universal.tar.xz") return@forEach
+                error("assets 里缺少 $asset")
+            }
+            context.assets.open(asset).use { raw ->
+                XZInputStream(raw).use { xz ->
+                    untar(CountingStream(xz, onProgress), staging)
+                }
             }
         }
+
         File(staging, MARKER).writeText(major.toString())
-        finalDir.deleteRecursively()
         finalDir.parentFile?.mkdirs()
-        if (!staging.renameTo(finalDir)) {
-            staging.copyRecursively(finalDir, overwrite = true)
-            staging.deleteRecursively()
-        }
+        finalDir.deleteRecursively()
+        if (!staging.renameTo(finalDir)) error("运行时解包失败：无法重命名到 ${finalDir.absolutePath}")
         return Installed(major, finalDir)
+    }
+
+    /** 解出来的是 Android 版 java（bionic），调用方必须自己设 LD_LIBRARY_PATH。 */
+    fun libraryPath(installed: Installed): String =
+        listOf(File(installed.home, "lib"), File(installed.home, "lib/aarch64"))
+            .joinToString(":") { it.absolutePath }
+
+    private fun assetExists(context: Context, path: String): Boolean = try {
+        context.assets.open(path).close(); true
+    } catch (_: Exception) {
+        false
     }
 
     private class CountingStream(private val inner: InputStream, private val cb: (Long) -> Unit) : InputStream() {
