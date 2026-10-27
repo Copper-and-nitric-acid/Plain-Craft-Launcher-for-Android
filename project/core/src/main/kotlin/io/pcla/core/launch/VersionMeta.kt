@@ -12,6 +12,8 @@ data class VersionMeta(
     val inheritsFrom: String?,
     val assetsIndex: String?,
     val javaMajor: Int?,
+    val assetIndexUrl: String?,
+    val clientUrl: String?,
     val libraries: List<Library>,
     val jvmArgs: List<Arg>,
     val gameArgs: List<Arg>,
@@ -22,12 +24,17 @@ data class VersionMeta(
             val libs = (root["libraries"] as? List<*>).orEmpty().mapNotNull { Library.parse(it) }
             val args = root["arguments"] as? Map<*, *>
             val javaVersion = root["javaVersion"] as? Map<*, *>
+            val assetIndex = root["assetIndex"] as? Map<*, *>
+            val downloads = root["downloads"] as? Map<*, *>
+            val client = downloads?.get("client") as? Map<*, *>
             return VersionMeta(
                 id = root["id"] as? String ?: "",
                 mainClass = root["mainClass"] as? String,
                 inheritsFrom = root["inheritsFrom"] as? String,
                 assetsIndex = root["assets"] as? String,
                 javaMajor = (javaVersion?.get("majorVersion") as? Number)?.toInt(),
+                assetIndexUrl = assetIndex?.get("url") as? String,
+                clientUrl = client?.get("url") as? String,
                 libraries = libs,
                 jvmArgs = Arg.parseList(args?.get("jvm")),
                 gameArgs = Arg.parseList(args?.get("game") ?: root["minecraftArguments"]),

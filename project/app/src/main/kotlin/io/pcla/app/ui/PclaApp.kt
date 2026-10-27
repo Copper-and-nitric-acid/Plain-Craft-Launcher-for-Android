@@ -66,6 +66,7 @@ fun PclaApp() {
                 r == null -> CenteredMessage("正在读取 GPU 与内存…", null)
                 tab == 0 -> HomeScreen(r) { reload++ }
                 tab == 1 -> DegradeScreen(r.spec, r.profile)
+                3 -> LaunchScreen(r.configs[r.recommendation.version]?.heapMb ?: 2048)
                 else -> DownloadScreen()
             }
         }
@@ -96,8 +97,10 @@ private fun PclTopBar(tab: Int, onTab: (Int) -> Unit) {
             PclTab("降级", selected = tab == 1) { onTab(1) }
             Spacer(Modifier.width(5.dp))
             PclTab("下载", selected = tab == 2) { onTab(2) }
+            Spacer(Modifier.width(5.dp))
+            PclTab("启动", selected = tab == 3) { onTab(3) }
             Spacer(Modifier.weight(1f))
-            Text("0.4.0", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
+            Text("0.5.0", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
         }
     }
 }
