@@ -59,6 +59,11 @@ object RuntimePack {
             }
         }
 
+        // tar 的 mode 字段各家打包工具写得不一定对；bin/ 下的东西一律补一次可执行位，
+        // 不然会在 exec 时得到 "Permission denied"，看着像 JRE 坏了
+        File(staging, "bin").listFiles()?.forEach { it.setExecutable(true, false) }
+        File(staging, "lib/jspawnhelper").takeIf { it.isFile }?.setExecutable(true, false)
+
         File(staging, MARKER).writeText(major.toString())
         finalDir.parentFile?.mkdirs()
         finalDir.deleteRecursively()
