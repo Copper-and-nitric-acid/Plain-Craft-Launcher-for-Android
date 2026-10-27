@@ -12,8 +12,8 @@ android {
         applicationId = "io.pcla.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.2.0-alpha"
+        versionCode = 2
+        versionName = "0.3.0-alpha"
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
@@ -38,6 +38,9 @@ android {
     }
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        // 老式打包：安装时把 lib*.so 解压到 nativeLibraryDir，
+        // Pojav 系的 dlopen 依赖真实文件路径，不能只在 APK 里映射。
+        jniLibs.useLegacyPackaging = true
     }
 }
 

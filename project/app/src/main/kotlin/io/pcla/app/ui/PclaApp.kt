@@ -97,7 +97,7 @@ private fun PclTopBar(tab: Int, onTab: (Int) -> Unit) {
             Spacer(Modifier.width(5.dp))
             PclTab("下载", selected = tab == 2) { onTab(2) }
             Spacer(Modifier.weight(1f))
-            Text("0.2.0", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
+            Text("0.3.0", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
         }
     }
 }

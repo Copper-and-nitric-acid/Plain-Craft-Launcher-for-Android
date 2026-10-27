@@ -43,6 +43,7 @@ internal fun HomeScreen(report: Report, onReload: () -> Unit) {
                 ),
             )
         }
+        NativeCard()
         RankedVersions(report)
         report.configs[report.recommendation.version]?.let { DiagCard(it) }
         Spacer(Modifier.width(1.dp))
