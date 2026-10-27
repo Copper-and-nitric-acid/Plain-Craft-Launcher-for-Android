@@ -17,6 +17,14 @@ project/            可构建的 Android 工程（Gradle）
 .github/            GitHub Actions：跑自检 + 出 Debug APK
 ```
 
-原生库与 JRE 都放在 `project/app/src/main/assets/` 与 `project/app/src/main/jniLibs/`。
-FCL 的原始二进制包（`lwjgl/`、`armeabi-v7a/` 等）已经从工作区移除以免仓库过重，
-需要时从 git 历史 `fe04459` 取回。
+## 原始二进制（只增不删）
+
+根目录这几组是 FCL 的原始资源，留着供以后换 LWJGL 版本 / 补其他 ABI / 试 AWT 变体，
+**不要删**：
+
+- `lwjgl/`：3.3.3 与 3.4.1 两套（1.21+ 可能需要 3.4.1）
+- `armeabi-v7a/`：v7a 的原生库（现在只做 arm64，以后也许要）
+- `caciocavallo/`、`caciocavallo17/`：AWT 的 1.10 与 1.17 变体
+- `device_profiles.json`：根目录这份是早期的旧副本，权威副本见 `project/`
+
+装进 APK 的只有 `project/app/src/main/assets/` 与 `jniLibs/` 里挑出来的子集。
