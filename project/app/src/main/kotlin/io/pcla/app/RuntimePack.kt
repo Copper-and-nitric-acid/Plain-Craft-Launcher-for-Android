@@ -50,7 +50,7 @@ object RuntimePack {
             val asset = "java/jre$major/$name"
             if (!assetExists(context, asset)) {
                 if (name == "universal.tar.xz") return@forEach
-                error("assets 里缺少 $asset")
+                error("本包没内置 Java $major 的运行时（只带 8 和 17）")
             }
             context.assets.open(asset).use { raw ->
                 XZInputStream(raw).use { xz ->

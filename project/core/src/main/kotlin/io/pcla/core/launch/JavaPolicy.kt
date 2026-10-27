@@ -40,5 +40,5 @@ object JavaPolicy {
     fun assetPath(major: Int): String = "java/jre$major/bin-arm64.tar.xz"
 
     /** 与 assets 目录一致，用于体检页展示「本包内置了哪几套运行时」。 */
-    fun bundledMajors(): List<Int> = listOf(JAVA_8, JAVA_17, JAVA_21, JAVA_25)
+    fun bundledMajors(): List<Int> = listOf(JAVA_8, JAVA_17)
 }
