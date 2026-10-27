@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.pcla.app.GameInstaller
+import io.pcla.app.InProcessLauncher
 import io.pcla.app.RuntimePack
 import io.pcla.core.launch.AndroidRuntime
 import io.pcla.core.launch.JavaPolicy
@@ -127,6 +128,32 @@ internal fun LaunchScreen(heapMb: Int) {
                                 JavaProbe.problems(major, out).forEach { append("✗ " + it) }
                             }
                         }.onFailure { append("自检失败：" + (it.message ?: it.javaClass.simpleName)) }
+                        busy = false
+                    }
+                },
+            )
+            // 实验路径：同进程起 JVM。崩会带走整个 App，所以单独一个按钮，不混进正常流程
+            PclButton(
+                text = "实验·同进程启动",
+                enabled = !busy,
+                onClick = {
+                    busy = true
+                    scope.launch {
+                        runCatching {
+                            withContext(Dispatchers.IO) {
+                                append("--- 同进程启动（实验）---")
+                                append(InProcessLauncher.loadNative(context).getOrElse {
+                                    "载入失败：" + (it.message ?: it.javaClass.simpleName)
+                                })
+                                val ready = installed
+                                if (ready == null) {
+                                    append("先点①装完版本再来")
+                                } else {
+                                    val code = InProcessLauncher.launch(context, ready, heapMb) { line -> append(line) }
+                                    append("launchJVM 返回 $code")
+                                }
+                            }
+                        }.onFailure { append("同进程启动失败：" + (it.message ?: it.javaClass.simpleName)) }
                         busy = false
                     }
                 },
