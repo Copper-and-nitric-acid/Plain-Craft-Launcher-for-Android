@@ -18,10 +18,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import android.content.Intent
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.compose.ui.unit.sp
+import io.pcla.app.GameActivity
 import io.pcla.app.GameInstaller
 import io.pcla.app.InProcessLauncher
 import io.pcla.app.RuntimePack
@@ -203,6 +205,28 @@ internal fun LaunchScreen(heapMb: Int) {
                             }
                         }.onFailure { append("失败：" + (it.message ?: it.javaClass.simpleName)) }
                         busy = false
+                    }
+                },
+            )
+            // 正路：全屏 Surface + 同进程 JVM 放在独立的 GameActivity 里。
+            // 启动页那张 660x192 的预览只是给「检查」看的，尺寸和生命周期都不适合真跑。
+            PclButton(
+                text = "进入游戏窗口（全屏 Surface）",
+                enabled = !busy && installed != null,
+                highlight = true,
+                onClick = {
+                    val ready = installed
+                    if (ready == null) {
+                        append("先点①下载并解压")
+                    } else {
+                        append("--- 打开游戏窗口 ${ready.versionId}，Java ${ready.javaMajor} ---")
+                        runCatching {
+                            startActivity(
+                                Intent(context, GameActivity::class.java)
+                                    .putExtra(GameActivity.EXTRA_VERSION, ready.versionId)
+                                    .putExtra(GameActivity.EXTRA_HEAP, heapMb),
+                            )
+                        }.onFailure { append("打不开游戏窗口：" + (it.message ?: it.javaClass.simpleName)) }
                     }
                 },
             )

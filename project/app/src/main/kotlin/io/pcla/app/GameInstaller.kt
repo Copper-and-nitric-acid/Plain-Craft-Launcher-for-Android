@@ -148,6 +148,50 @@ object GameInstaller {
         Installed(versionId, root, launchPlan, major)
     }
 
+    /**
+     * 从磁盘上已经下好的文件重建 [Installed]，不联网。
+     *
+     * 为什么需要它：下载那一步在启动页，真正起 JVM 的是另一个 Activity
+     * （全屏 Surface 在那边），Intent 里塞不下 LaunchPlan，所以按版本号
+     * 重新拼一遍。这里只读本地 json 和已下载的库，不触发任何请求。
+     */
+    fun assemble(context: Context, versionId: String): Installed {
+        val root = File(context.filesDir, "game")
+        val versionJson = File(root, "versions/$versionId/$versionId.json")
+        require(versionJson.isFile) {
+            "还没下载 $versionId（找不到 ${versionJson.absolutePath}），先回启动页点①"
+        }
+        val meta = VersionMeta.parse(versionJson.readText())
+        val assetsName = meta.assetsIndex ?: versionId
+        val indexFile = File(root, "assets/indexes/$assetsName.json")
+        val assets = if (indexFile.isFile) AssetIndex.parse(indexFile.readText()) else emptyList()
+
+        val (runtimeMeta, _) = AndroidRuntime.strip(meta)
+        // clientUrl 这里只是个占位（GamePlan 用它算相对路径），不会再下载
+        val plan0 = GamePlan.build(runtimeMeta, assets, versionId, clientUrl = meta.clientUrl?.let { mirrored(it) })
+
+        val nativesDir = File(root, "natives")
+        val lwjgl = LwjglAssets.install(context, root)
+        val clientJar = plan0.clientJar?.let { File(root, it.relativePath).absolutePath } ?: ""
+        val placeholders = ClasspathBuilder.placeholders(
+            classpath = "",
+            nativesDir = listOf(
+                nativesDir.absolutePath,
+                lwjgl.nativesDir,
+                context.applicationInfo.nativeLibraryDir,
+            ).joinToString(":"),
+            gameDir = root.absolutePath,
+            assetsDir = File(root, "assets").absolutePath,
+            assetsIndex = assetsName,
+            versionName = versionId,
+        )
+        val launchPlan = ClasspathBuilder.build(
+            runtimeMeta, File(root, "libraries").absolutePath, clientJar, placeholders, lwjgl.jars,
+        )
+        val major = meta.javaMajor ?: JavaPolicy.requiredMajor(versionId)
+        return Installed(versionId, root, launchPlan, major)
+    }
+
     /** 三处 natives 都进 java.library.path：清单解出来的、随包 LWJGL 的、jniLibs 的。 */
     fun nativesPath(context: Context, root: File): String = listOf(
         // 顺序即优先级：随包的 arm64 LWJGL 必须排在清单解出来的 x86 前面，
