@@ -29,6 +29,8 @@ android {
 
     buildFeatures {
         compose = true
+        // AGP 8 默认不生成 BuildConfig，顶栏版本号要读它
+        buildConfig = true
     }
 
     externalNativeBuild {
