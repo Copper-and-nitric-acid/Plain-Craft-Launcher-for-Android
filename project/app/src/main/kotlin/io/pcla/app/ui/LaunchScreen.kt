@@ -221,7 +221,7 @@ internal fun LaunchScreen(heapMb: Int) {
                     } else {
                         append("--- 打开游戏窗口 ${ready.versionId}，Java ${ready.javaMajor} ---")
                         runCatching {
-                            startActivity(
+                            context.startActivity(
                                 Intent(context, GameActivity::class.java)
                                     .putExtra(GameActivity.EXTRA_VERSION, ready.versionId)
                                     .putExtra(GameActivity.EXTRA_HEAP, heapMb),
