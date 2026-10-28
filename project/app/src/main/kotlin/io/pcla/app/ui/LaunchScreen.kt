@@ -188,6 +188,7 @@ internal fun LaunchScreen(heapMb: Int) {
                             } else {
                                 append("--- 交接 Surface 后同进程启动 ---")
                                 append("native 入口：" + SurfaceBridge.describe())
+                                append("走 org.lwjgl.glfw.CallbackBridge.setupBridgeWindow（真 JNI）")
                                 val err = SurfaceBridge.attach(s)
                                 if (err != null) {
                                     append("✗ Surface 交接失败：" + err)
