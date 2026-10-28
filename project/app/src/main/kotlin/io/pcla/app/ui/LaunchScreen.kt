@@ -67,6 +67,8 @@ internal fun LaunchScreen(heapMb: Int) {
                 enabled = !busy,
                 highlight = true,
                 onClick = {
+                    append("--- 点了①：下载并解压 $version ---")
+                    stage = "准备开始…"
                     busy = true
                     scope.launch {
                         runCatching {
@@ -81,7 +83,11 @@ internal fun LaunchScreen(heapMb: Int) {
                                 }
                             }
                         }.onSuccess { installed = it; stage = "就绪，可以启动" }
-                            .onFailure { append("安装失败：" + (it.message ?: it.javaClass.simpleName)) }
+                            .onFailure {
+                                val msg = it.message ?: it.javaClass.simpleName
+                                stage = "失败：$msg"
+                                append("安装失败：$msg")
+                            }
                         busy = false
                     }
                 },
@@ -156,6 +162,7 @@ internal fun LaunchScreen(heapMb: Int) {
                                 })
                                 val ready = installed
                                 if (ready == null) {
+                                    stage = "先点①装完版本"
                                     append("先点①装完版本再来")
                                 } else {
                                     val code = InProcessLauncher.launch(context, ready, heapMb) { line -> append(line) }

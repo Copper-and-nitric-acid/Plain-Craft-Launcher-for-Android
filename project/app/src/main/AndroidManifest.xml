@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- 下载游戏文件走网络。漏了这条，所有 socket 会立刻 EPERM，
+         表现就是点「① 下载并解压」毫无反应（错误只写进下面的日志区）。 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application
         android:allowBackup="false"
         android:label="PCLA"

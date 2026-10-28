@@ -1,5 +1,7 @@
 package io.pcla.app.ui
 
+import io.pcla.app.BuildConfig
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -100,7 +102,7 @@ private fun PclTopBar(tab: Int, onTab: (Int) -> Unit) {
             Spacer(Modifier.width(5.dp))
             PclTab("启动", selected = tab == 3) { onTab(3) }
             Spacer(Modifier.weight(1f))
-            Text("0.5.0", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
+            Text(BuildConfig.VERSION_NAME, color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
         }
     }
 }

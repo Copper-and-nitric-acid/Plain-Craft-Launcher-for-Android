@@ -87,6 +87,16 @@ object InProcessLauncher {
         onLine("同进程启动：${argv.size} 个参数，主类 " + installed.plan.mainClass)
         onLine(argv.take(6).joinToString(" "))
         val started = System.currentTimeMillis()
+        // native 崩溃不会留堆栈，先落一份「准备调 JVM」的记录：
+        // 进程若死在这行之后，至少能确认是 native 里崩的，而不是根本没走到。
+        runCatching {
+            val dir = context.getExternalFilesDir("crash") ?: context.filesDir
+            dir.mkdirs()
+            File(dir, "last-launch.txt").writeText(
+                "time=${System.currentTimeMillis()}\nversion=${BuildConfig.VERSION_NAME}\n" +
+                    argv.joinToString("\n")
+            )
+        }
         val code = VMLauncher.launchJVM(argv.toTypedArray())
         Log.i(TAG, "launchJVM 返回 $code，耗时 ${System.currentTimeMillis() - started}ms")
         return code
