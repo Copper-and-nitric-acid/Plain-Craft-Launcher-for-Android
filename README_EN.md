@@ -34,6 +34,18 @@ I want to express my deepest gratitude to the FCL team and all predecessors in t
 
 However, I hereby make a solemn promise: If one day, I have my own PC, or if I acquire sufficient technical capabilities, I will definitely refactor all these .so native libraries from scratch to fill this gap. I will make PCLA a truly pure, completely independent, and powerful project! I invite the entire open-source community to witness my growth. This patchwork is temporary, but my passion is permanent.
 
+## ☕ Support Me (Afdian)
+
+If PCLA saved you some time, or you just want to watch a 13-year-old keep this project alive,
+you can buy me a cup of electricity on Afdian:
+
+**👉 [afdian.com/a/L38324R14122](https://afdian.com/a/L38324R14122)**
+
+Where the money goes: a second-hand PC that can actually run an emulator (right now everything is
+built on a phone plus cloud CI), a non-shattered case for the test device, and the occasional
+late-night snack. **Donations are entirely voluntary and unlock nothing — PCLA stays free and
+AGPL-3.0 forever.**
+
 ## 📥 Global Dual-Channel Download
 
 To ensure everyone can access the latest builds regardless of their network location, I have prepared two download channels:
