@@ -20,6 +20,10 @@ import io.pcla.core.launch.JavaProbe
 import io.pcla.core.launch.Platform
 import io.pcla.core.launch.VersionMeta
 import io.pcla.core.version.VersionManifest
+import io.pcla.core.net.MemoryPulse
+import io.pcla.core.net.Probe
+import io.pcla.core.net.UrlHealth
+import io.pcla.core.net.Verdict
 import io.pcla.core.launch.Lever
 import io.pcla.core.launch.RunObservation
 import io.pcla.core.launch.LaunchTarget
@@ -397,6 +401,27 @@ fun main(args: Array<String>) {
     check("高版本被抓出来", tooHigh.any { it.contains("对不上") })
     check("高版本提示 class file major", tooHigh.any { it.contains("Unsupported class file major version") })
     check("渲染带需要的大版本", JavaProbe.render(v8, 8).contains("8"))
+
+    // 网址体检：可用/404/服务端挂/超时，四种死法要分开说
+    val okProbe = Probe("清单", "https://a", 200, 42)
+    check("200 算可用", okProbe.ok)
+    check("可用带毫秒", UrlHealth.classify(okProbe).contains("42ms"))
+    check("404 说明文件没了", UrlHealth.classify(Probe("x", "u", 404)).contains("文件没了"))
+    check("超时不可用", !UrlHealth.classify(Probe("x", "u", 0, 6000, "timeout")).startsWith("可用"))
+    val mixed = listOf(okProbe, Probe("挂了", "https://b", 500))
+    check("混合时给 n/m 可用", UrlHealth.summary(mixed).startsWith("1/2 可用"))
+    check("最快的是它", UrlHealth.summary(mixed).contains("清单"))
+    check("全挂的总结", UrlHealth.summary(listOf(Probe("x", "u", 0, 0, "timeout"))).contains("全部"))
+
+    // 内存体检：「便秘」是高位不降，「拉稀」是剧烈抖动，对策相反
+    val const = MemoryPulse.classify(listOf(1800, 1805, 1802, 1804), 2048)
+    check("高位不动判便秘", const.verdict == Verdict.便秘)
+    check("便秘说居高不下", const.detail.contains("居高不下"))
+    val churn = MemoryPulse.classify(listOf(200, 900, 300, 950, 250), 2048)
+    check("剧烈抖动判拉稀", churn.verdict == Verdict.拉稀)
+    check("拉稀说变化太快", churn.detail.contains("变化太快"))
+    check("采样太少先别下结论", MemoryPulse.classify(listOf(1), 2048).verdict == Verdict.正常)
+    check("低占用判正常", MemoryPulse.classify(listOf(100, 120, 110), 2048).verdict == Verdict.正常)
 
     println("\n========================================")
     println("通过 $passed 项，失败 $failed 项")

@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -32,8 +33,10 @@ import io.pcla.core.launch.AndroidRuntime
 import io.pcla.core.launch.JavaPolicy
 import io.pcla.core.launch.JavaProbe
 import io.pcla.core.launch.Preflight
+import io.pcla.core.net.UrlHealth
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -54,6 +57,18 @@ internal fun LaunchScreen(heapMb: Int) {
     // 经 libpcla_surface.so 转交给 libpojavexec.so 里保存的 ANativeWindow。
     var surface by remember { mutableStateOf<Surface?>(null) }
     var surfaceState by remember { mutableStateOf("还没创建") }
+    // 内存体检：每秒取一个点，攒够窗口后判断是「便秘」还是「拉稀」。
+    var memLine by remember { mutableStateOf("采样中…") }
+    var urlLine by remember { mutableStateOf("还没测过") }
+
+    LaunchedEffect(Unit) {
+        io.pcla.app.MemorySampler.markLaunchStart()
+        while (true) {
+            val snap = io.pcla.app.MemorySampler.sample()
+            memLine = "${snap.pulse.verdict}：${snap.pulse.detail}"
+            delay(1000)
+        }
+    }
 
     fun append(line: String) {
         log = if (log.length > 20000) log.takeLast(12000) + "\n" + line else log + "\n" + line
@@ -64,6 +79,8 @@ internal fun LaunchScreen(heapMb: Int) {
             PclField("版本", version)
             PclField("堆", "${heapMb}MB（来自档位推荐）")
             PclField("状态", stage)
+            PclField("网址", urlLine)
+            PclField("内存体检", memLine)
             PclButton(
                 text = if (busy) "进行中…" else "① 下载并解压",
                 enabled = !busy,
@@ -227,6 +244,20 @@ internal fun LaunchScreen(heapMb: Int) {
                                     .putExtra(GameActivity.EXTRA_HEAP, heapMb),
                             )
                         }.onFailure { append("打不开游戏窗口：" + (it.message ?: it.javaClass.simpleName)) }
+                    }
+                },
+            )
+            PclButton(
+                text = "网址体检",
+                enabled = !busy,
+                onClick = {
+                    // 网址可用性：四个会真的被下载流程用到的地址，各敲一下 HEAD。
+                    urlLine = "测速中…"
+                    scope.launch {
+                        append("--- 网址体检 ---")
+                        val probes = withContext(Dispatchers.IO) { NetProbe.probeAll() }
+                        append(NetProbe.render(probes))
+                        urlLine = UrlHealth.summary(probes)
                     }
                 },
             )
