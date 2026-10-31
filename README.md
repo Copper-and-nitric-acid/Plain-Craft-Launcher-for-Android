@@ -5,6 +5,8 @@
 - [中文说明 / 中文介绍](README_CN.md)
 - [English introduction](README_EN.md)
 
+☕ 想支持这个项目？请去爱发电：https://afdian.com/a/L38324R14122
+
 ## 仓库结构
 
 ```
