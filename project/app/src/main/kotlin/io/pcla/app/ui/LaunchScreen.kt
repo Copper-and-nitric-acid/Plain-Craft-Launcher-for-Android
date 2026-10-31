@@ -26,6 +26,7 @@ import android.view.SurfaceView
 import androidx.compose.ui.unit.sp
 import io.pcla.app.GameActivity
 import io.pcla.app.GameInstaller
+import io.pcla.app.NetProbe
 import io.pcla.app.InProcessLauncher
 import io.pcla.app.RuntimePack
 import io.pcla.app.SurfaceBridge
