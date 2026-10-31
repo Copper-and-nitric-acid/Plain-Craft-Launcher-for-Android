@@ -1,23 +1,23 @@
 package io.pcla.core.launch
 
 /**
- * AWT 那一侧：让 Minecraft 的窗口能在一台没有 X11 的 Android 上开出来。
+ * The AWT side: let Minecraft's window open on an Android device with no X11.
  *
- * 链路是 Caciocavallo 的 CTC 工具包：AWT 的 Frame/Canvas 由它实现，
- * 真正的像素由 libpojavexec_awt.so / libawt_xawt.so 交给 Android。
- * 缺了这几个 jar，LWJGL 3 建 GLFW 窗口时会一路走到 AWT 并抛
- * java.awt.HeadlessException。
+ * The chain is Caciocavallo's CTC toolkit: AWT's Frame/Canvas are implemented by it,
+ * and the actual pixels are handed to Android by libpojavexec_awt.so / libawt_xawt.so.
+ * Without these jars, LWJGL 3 falls through to AWT when creating a GLFW window and throws
+ * java.awt.HeadlessException.
  */
 object AwtRuntime {
     const val BUNDLE_DIR = "caciocavallo"
 
-    /** 进 classpath 的顺序：shared 先，androidnw 后。 */
+    /** Classpath order: shared first, androidnw after. */
     val JARS = listOf(
         "cacio-shared-1.10-SNAPSHOT.jar",
         "cacio-androidnw-1.10-SNAPSHOT.jar",
     )
 
-    /** 只给 JVM 用，不进 classpath。 */
+    /** For the JVM only, not on the classpath. */
     const val RESCONF = "ResConfHack.jar"
 
     val TOOLKIT = "net.java.openjdk.cacio.ctc.CTCToolkit"

@@ -33,10 +33,10 @@ import io.pcla.core.launch.VersionPolicy
 import java.io.File
 
 /**
- * 不依赖 JUnit 的自检程序。
+ * Self-check harness that does not depend on JUnit.
  *
- * 为什么手写：core 模块要能在 Termux（无 Android SDK、无 Gradle）里
- * 用一条命令跑完，这就是「手机上也能验证」的底线。
+ * Why hand-written: the core module must run end-to-end in Termux (no Android SDK,
+ * no Gradle) with one command — that is the baseline for "verifiable on the phone".
  *
  *   kotlinc core/src/main/kotlin -include-runtime -d core.jar
  *   java -jar core.jar device_profiles.json
@@ -58,7 +58,7 @@ private fun eq(name: String, expected: Any?, actual: Any?) =
     check(name, expected == actual, "期望 $expected，实际 $actual")
 
 fun main(args: Array<String>) {
-    // 子命令：java -jar core.jar gc <gc.log>
+    // Subcommand: java -jar core.jar gc <gc.log>
     if (args.firstOrNull() == "gc") {
         val path = args.getOrNull(1)
         if (path == null) {
@@ -69,7 +69,7 @@ fun main(args: Array<String>) {
         return
     }
 
-    // 子命令：java -jar core.jar degrade <json> <版本> <当前RD> <实测fps> [采样秒] [堆MB] [GC占比%] [回收率%] [可用内存MB]
+    // Subcommand: java -jar core.jar degrade <json> <version> <current RD> <measured fps> [sample s] [heap MB] [GC share %] [reclaim %] [available MB]
     if (args.firstOrNull() == "degrade") {
         val json = File(args.getOrNull(1) ?: "device_profiles.json").readText()
         val table = ProfileTable.parse(json)
@@ -135,8 +135,9 @@ fun main(args: Array<String>) {
 
     println("\n=== 4. JVM 参数生成（RD=4，无 mod） ===")
     val cases = listOf("1.12.2", "1.16.5", "1.18", "1.19.2", "1.20.1")
-    // 默认堆 = 这台机型实测跑过的基线（2048）。1.18 曾按「版本系数×甜点」算到 3072，
-    // 但那是 8GB 机器上不该默认给出的数字：加堆要等运行时 GC 证据（见 DegradeLadder）。
+    // Default heap = the baseline this device measured (2048). 1.18 once computed 3072
+    // from "version factor × sweet spot", but that is not what an 8GB machine should
+    // get by default: raising the heap waits for runtime GC evidence (see DegradeLadder).
     val expectedHeap = mapOf("1.12.2" to 2048, "1.16.5" to 2048, "1.18" to 2048, "1.19.2" to 2048, "1.20.1" to 2048)
     for (v in cases) {
         val cfg = JvmTuner.tune(spec, profile, LaunchTarget(v, Loader.FORGE, 0, 4))
@@ -149,7 +150,7 @@ fun main(args: Array<String>) {
     val rd17 = JvmTuner.tune(spec, profile, LaunchTarget("1.16.5", Loader.FORGE, 0, 17))
     check("RD17 被标记为 BLOCK", rd17.blocked)
     eq("RD17 诊断码", "RD_BAN", rd17.diagnostics.first { it.severity == Severity.BLOCK }.code)
-    // 渲染距离吃的是显存和 CPU，不是堆。实测 1.18 在 RD17 下用 2048MB 也没有 OOM。
+    // Render distance costs VRAM and CPU, not heap. Measured: 1.18 at RD17 with 2048MB had no OOM.
     check("RD17 不改变堆", rd17.heapMb == 2048, "实际 ${rd17.heapMb}")
 
     val avoid = JvmTuner.tune(spec, profile, LaunchTarget("1.19.2", Loader.FORGE, 0, 4))
@@ -174,7 +175,7 @@ fun main(args: Array<String>) {
     val events = GcLogParser.parse(sample)
     eq("事件数", 7, events.size)
     eq("其中并发事件", 1, events.count { !it.stopTheWorld })
-    // GC(229) 的起始行没有时长，属于「同一周期的开始」，重复计入会把并发周期数翻倍
+    // GC(229)'s start line has no duration; it is "the start of the same cycle", so counting it again doubles the concurrent cycle count
     check("无时长的并发起始行被丢弃", events.none { it.atMillis == 310670L })
     val sum = GcLogParser.summarize(events)
     eq("最长 STW 停顿", 297.91, sum.maxMs)
@@ -183,7 +184,7 @@ fun main(args: Array<String>) {
     check("簇检测命中 300s 窗口", sum.clusters.any { it.startSeconds == 300 })
 
     println("\n=== 7. 降级阶梯（帧率低于 20 时先动什么） ===")
-    // 场景 A：1.16.5 拉 RD17，GC 很干净 → 必须先去动渲染距离，不许碰堆
+    // Scenario A: 1.16.5 at RD17, GC is clean → must touch render distance first, never the heap
     val planA = DegradeLadder.plan(
         RunObservation(avgFps = 18.0, sampleSeconds = 60, renderDistance = 17, heapMb = 2048,
             gcPausePct = 0.4, liveSetMb = 1100),
@@ -194,7 +195,7 @@ fun main(args: Array<String>) {
     check("GC 干净时不缩堆", planA.heapVerdict.contains("缩堆无效"), planA.heapVerdict)
     check("不掉进缩堆陷阱", planA.actions.none { it.lever == Lever.HEAP })
 
-    // 场景 B：1.18 活对象顶满 + GC 吃掉 9% → 方向是加堆，不是缩
+    // Scenario B: 1.18 live set maxed out + GC eats 9% → the direction is to add heap, not shrink
     val tuned118 = JvmTuner.tune(spec, profile, LaunchTarget("1.18", Loader.FORGE, 0, 4))
     val planB = DegradeLadder.plan(
         RunObservation(avgFps = 15.0, sampleSeconds = 60, renderDistance = 4, heapMb = 2048,
@@ -204,7 +205,7 @@ fun main(args: Array<String>) {
     val heapB = planB.actions.firstOrNull { it.lever == Lever.HEAP }
     check("GC 吃帧时建议加堆", heapB != null && heapB.to == "3072", heapB?.to ?: "无动作")
 
-    // 场景 C：低内存设备 + 可用内存吃紧 → 这时才该缩堆（用户提的 1024 在这里成立）
+    // Scenario C: low-RAM device + tight available memory → only then should the heap shrink (the user's 1024 holds here)
     val spec3g = spec.copy(ramMb = 3072L)
     val planC = DegradeLadder.plan(
         RunObservation(avgFps = 15.0, sampleSeconds = 60, renderDistance = 4, heapMb = 2048,
@@ -215,14 +216,14 @@ fun main(args: Array<String>) {
     check("内存吃紧才缩堆", heapC != null && heapC.to == "1075", heapC?.to ?: "无动作")
     check("缩堆理由写的是内存不是帧率", planC.heapVerdict.contains("内存"), planC.heapVerdict)
 
-    // 场景 D：采样不足 → 不下结论
+    // Scenario D: sample too short → draw no conclusion
     val planD = DegradeLadder.plan(
         RunObservation(avgFps = 12.0, sampleSeconds = 12, renderDistance = 17, heapMb = 2048),
         spec, profile, "1.16.5",
     )
     check("采样不足不下结论", planD.isEmpty, planD.heapVerdict)
 
-    // Java 版本策略：错了会 Unsupported class file major version
+    // Java version policy: getting it wrong yields Unsupported class file major version
     eq("1.12.2 → Java 8", 8, JavaPolicy.requiredMajor("1.12.2"))
     eq("1.16.5 → Java 8", 8, JavaPolicy.requiredMajor("1.16.5"))
     eq("1.18 → Java 17", 17, JavaPolicy.requiredMajor("1.18"))
@@ -232,7 +233,7 @@ fun main(args: Array<String>) {
     eq("1.21.4 → Java 21", 21, JavaPolicy.requiredMajor("1.21.4"))
     eq("快照版本回落 Java 8", 8, JavaPolicy.requiredMajor("23w45a"))
 
-    // 版本 json → 启动命令行
+    // Version json → launch command line
     val metaJson = """
         {"id":"1.16.5","mainClass":"net.minecraft.client.main.Main","assets":"1.16",
          "javaVersion":{"majorVersion":8},
@@ -263,7 +264,7 @@ fun main(args: Array<String>) {
     check("玩家名已替换", plan.gameArgs.contains("PCLA"))
     check("启动前检查无问题", ClasspathBuilder.problems(plan).isEmpty(), ClasspathBuilder.problems(plan).joinToString())
 
-    // version manifest 与 asset index
+    // Version manifest and asset index
     val manifest = VersionManifest.parse("""
         {"latest":{"release":"1.21.4","snapshot":"25w45a"},
          "versions":[{"id":"1.16.5","type":"release","url":"https://x/1.16.5.json"},
@@ -278,7 +279,7 @@ fun main(args: Array<String>) {
     eq("asset 对象数", 1, assets.size)
     eq("asset 分片路径", "objects/ab/ab12cd34", AssetIndex.relativePath(assets[0].hash))
 
-    // 完整命令行
+    // Full command line
     val argv = LaunchCommand.build("/rt/bin/java", plan, 2048, "/natives")
     eq("argv 第一项是 java", "/rt/bin/java", argv[0])
     check("带 -Xmx2048M", argv.contains("-Xmx2048M"))
@@ -290,9 +291,9 @@ fun main(args: Array<String>) {
     check("mainClass 在 gameArgs 前", argv.indexOf(plan.mainClass) < argv.indexOf("--username"))
     check("空格参数渲染时加引号", LaunchCommand.render(listOf("a b")).startsWith("\""))
 
-    // 要下哪些文件
+    // Which files to download
     val gp = GamePlan.build(meta, assets, "1.16.5", clientUrl = "https://x/client.jar")
-    // 样例里放行两条：lwjgl 3.2.2（有 artifact）与 com.example:native-ish（只有 classifier）
+    // The sample allows two through: lwjgl 3.2.2 (has an artifact) and com.example:native-ish (classifier only)
     eq("库文件数", 1, gp.libraries.size)
     eq("natives 文件数", 2, gp.natives.size)
     eq("asset 文件数", 1, gp.assets.size)
@@ -301,7 +302,7 @@ fun main(args: Array<String>) {
     eq("asset 落盘路径", "objects/ab/ab12cd34", gp.assets[0].relativePath)
     eq("client.jar 路径", "versions/1.16.5/1.16.5.jar", gp.clientJar?.relativePath)
 
-    // 哈希复核：只报告，不删文件
+    // Hash recheck: report only, never delete files
     val tmp = java.io.File(System.getProperty("java.io.tmpdir"), "pcla-selftest").apply { deleteRecursively(); mkdirs() }
     val fake = java.io.File(tmp, "objects/ab/ab12cd34").apply { parentFile.mkdirs(); writeText("x") }
     val bad = GameVerifier.verify(gp.assets, tmp) { "deadbeef" }
@@ -310,7 +311,7 @@ fun main(args: Array<String>) {
     eq("哈希一致时无告警", 0, good.size)
     check("根因文件确实存在", fake.isFile)
 
-    // natives 解压：只取 .so，跳过 META-INF 与普通文件
+    // Natives extraction: only .so, skipping META-INF and plain files
     val jar = java.io.File(tmp, "natives-test.jar")
     java.util.zip.ZipOutputStream(jar.outputStream()).use { zos ->
         listOf("META-INF/MANIFEST.MF" to "m", "libtest.so" to "s", "readme.txt" to "r", "sub/libother.so" to "o")
@@ -327,7 +328,7 @@ fun main(args: Array<String>) {
     check("so 带可执行位", java.io.File(nativesDir, "libtest.so").canExecute())
     check("META-INF 不落盘", !java.io.File(nativesDir, "MANIFEST.MF").exists())
 
-    // 手机上换 LWJGL：清单里 org.lwjgl 全去掉，随包的 jar 排在最前
+    // Swap LWJGL on the phone: strip every org.lwjgl from the manifest, bundled jars go first
     val lmeta = VersionMeta.parse(
         """{"id":"t","mainClass":"net.minecraft.client.main.Main","arguments":{"game":["--username","PCLA","--version","1.16.5","--gameDir","/g","--assetsDir","/a","--assetIndex","1.16"]},"libraries":["""
             + """{"name":"org.lwjgl:lwjgl:3.2.2","downloads":{"artifact":{"path":"org/lwjgl/lwjgl/3.2.2/lwjgl-3.2.2.jar","url":"https://x/lwjgl.jar"}}},"""
@@ -348,7 +349,7 @@ fun main(args: Array<String>) {
     check("merged-modules 排第一", AndroidRuntime.JARS.first().contains("merged-modules"))
     check("随包 so 名单覆盖 opengl", AndroidRuntime.NATIVES.any { it.contains("opengl") })
 
-    // 启动前自检：故意做一份“好”的与一份“坏”的
+    // Preflight: deliberately build one "good" plan and one "bad" one
     val goodPlan = ClasspathBuilder.build(
         stripped, "/libs", "/c.jar",
         ClasspathBuilder.placeholders("", "/n:/m:/j", "/g", "/a", "1.16", "1.16.5"),
@@ -362,7 +363,7 @@ fun main(args: Array<String>) {
     check("版本错配会被抓出来", badChecks.any { !it.ok && it.name.contains("Java 大版本") })
     check("自检渲染带 ✓/✗", Preflight.render(goodChecks).startsWith("✓"))
 
-    // AWT：Caciocavallo 的 jar 与三个启动属性
+    // AWT: the Caciocavallo jars and three launch properties
     eq("cacio 两个 jar", 2, AwtRuntime.JARS.size)
     check("cacio 顺序 shared 在前", AwtRuntime.JARS.first().contains("shared"))
     val props = AwtRuntime.jvmProps(1280, 720)
@@ -376,13 +377,13 @@ fun main(args: Array<String>) {
 
 
 
-    // 清单里的 org.lwjgl 3.2.2 必须被剔掉，否则和随包 3.3.3 混着加载
+    // org.lwjgl 3.2.2 from the manifest must be stripped, or it loads mixed with the bundled 3.3.3
     check("lwjgl 3.2.2 不进 classpath", !plan.classpath.contains("lwjgl/3.2.2"))
     check("lwjgl natives 也不进", plan.nativeJars.none { it.contains("3.2.2") })
     val keepLwjgl = ClasspathBuilder.build(lmeta, "/libs", "/c.jar", lplace, emptyList(), emptySet())
     check("关掉剔除后能拿回来", keepLwjgl.classpath.contains("lwjgl/3.2.2"))
 
-    // java -version 的认版本逻辑：JRE 解包坏没坏，先看这一行
+    // Version detection from java -version: a broken JRE unpack shows up in this line first
     val v8 = JavaProbe.parse("""
         openjdk version "1.8.0_442"
         OpenJDK Runtime Environment (build 1.8.0_442-b06)
@@ -402,7 +403,7 @@ fun main(args: Array<String>) {
     check("高版本提示 class file major", tooHigh.any { it.contains("Unsupported class file major version") })
     check("渲染带需要的大版本", JavaProbe.render(v8, 8).contains("8"))
 
-    // 网址体检：可用/404/服务端挂/超时，四种死法要分开说
+    // URL health check: OK / 404 / server down / timeout — the four failure modes must read differently
     val okProbe = Probe("清单", "https://a", 200, 42)
     check("200 算可用", okProbe.ok)
     check("可用带毫秒", UrlHealth.classify(okProbe).contains("42ms"))
@@ -413,7 +414,7 @@ fun main(args: Array<String>) {
     check("最快的是它", UrlHealth.summary(mixed).contains("清单"))
     check("全挂的总结", UrlHealth.summary(listOf(Probe("x", "u", 0, 0, "timeout"))).contains("全部"))
 
-    // 内存体检：「便秘」是高位不降，「拉稀」是剧烈抖动，对策相反
+    // Memory check: 便秘 is a high plateau that never drops, 拉稀 is violent churn; the fixes are opposite
     val const = MemoryPulse.classify(listOf(1800, 1805, 1802, 1804), 2048)
     check("高位不动判便秘", const.verdict == Verdict.便秘)
     check("便秘说居高不下", const.detail.contains("居高不下"))

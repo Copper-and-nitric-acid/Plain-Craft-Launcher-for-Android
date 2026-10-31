@@ -1,14 +1,14 @@
 package io.pcla.core.json
 
 /**
- * 零依赖的极简 JSON 解析器。
+ * Minimal zero-dependency JSON parser.
  *
- * 为什么不用 kotlinx.serialization：core 模块刻意不引入任何第三方依赖，
- * 这样它既能编进 Android APK，也能用 `kotlinc` 在 Termux 里直接跑单测，
- * 还能被 CI 在无 Android SDK 的环境下编译验证。
+ * Why not kotlinx.serialization: the core module deliberately takes no third-party
+ * dependency, so it can be built into the Android APK, run unit tests directly with `kotlinc`
+ * in Termux, and be compile-checked by CI with no Android SDK installed.
  *
- * 支持：对象 / 数组 / 字符串（含转义）/ 数字 / true / false / null。
- * 不支持：注释、尾逗号。遇到非法输入直接抛 [JsonParseException]，不做容错猜测。
+ * Supports: object / array / string (with escapes) / number / true / false / null.
+ * Does not support: comments, trailing commas. Invalid input throws [JsonParseException] — no guessing.
  */
 object MiniJson {
     fun parse(text: String): Any? {
@@ -92,7 +92,7 @@ private class Parser(private val s: String) {
     }
 
     private fun readString(): String {
-        i++ // 开头的引号
+        i++ // opening quote
         val sb = StringBuilder()
         while (i < s.length) {
             when (val c = s[i]) {

@@ -1,10 +1,10 @@
 package io.pcla.core.net
 
 /**
- * 一个地址的体检结果。
+ * Health-check result for one address.
  *
- * 这里刻意只放「纯数据 + 纯判断」，真正的 HEAD 请求在 app 层用
- * HttpURLConnection 发（core 模块零依赖，不能引 OkHttp）。
+ * Deliberately only "pure data + pure judgment"; the real HEAD request is sent in the app layer with
+ * HttpURLConnection (the core module has zero dependencies, so it cannot pull in OkHttp).
  */
 data class Probe(
     val label: String,
@@ -17,10 +17,10 @@ data class Probe(
 }
 
 /**
- * 网址体检：把「能不能下」翻译成人话。
+ * URL health check: translate "can it download" into plain words.
  *
- * 起因是用户那句「加上网址可用」——镜像站挂掉时，界面不能只显示一个
- * 转圈的进度条，得明确告诉你哪个地址死了、死法是什么。
+ * It started from the user's line "make URL availability show": when a mirror dies, the UI must not show just a
+ * spinning progress bar — it has to say which address is dead and how it died.
  */
 object UrlHealth {
 
@@ -35,7 +35,7 @@ object UrlHealth {
         else -> "莫名其妙（${p.code}）"
     }
 
-    /** 按「可用 / 全部阵亡」给一句总结，界面直接显示这行。 */
+    /** One-line summary as "usable / all dead"; the UI shows this line directly. */
     fun summary(list: List<Probe>): String {
         if (list.isEmpty()) return "一个地址都没测"
         val ok = list.count { it.ok }

@@ -4,10 +4,10 @@ import io.pcla.core.json.JsonParseException
 import io.pcla.core.json.MiniJson
 
 /**
- * 档位表里的一行：一个 SoC（可能覆盖多个机型）的实测结论与规则。
+ * One row of the profile table: measured conclusions and rules for one SoC (may cover several devices).
  *
- * 数据来源是 device_profiles.json，不是猜的。任何数值改动都应当附上实测记录，
- * 否则宁可不写——档位表一旦开始编数字，整个产品就失去意义了。
+ * The data comes from device_profiles.json, not from guessing. Any number change must carry a
+ * measurement record, otherwise leave it out — once the table invents numbers, the product is moot.
  */
 data class DeviceProfile(
     val id: String,
@@ -19,10 +19,10 @@ data class DeviceProfile(
     val rd: RenderDistanceRule,
     val measured: Map<String, Measured>,
     val rules: List<String>,
-    /** G1 并行线程数。大小核机型上默认值会把停顿拖长，需要显式压到小核数量以内。 */
+    /** G1 parallel threads. On big.LITTLE chips the default lengthens pauses, so clamp it to the little-core count. */
     val gcParallelThreads: Int? = null,
 ) {
-    /** 版本号前缀匹配："1.18.2" 命中 "1.18"。优先最长匹配，避免 1.1 吃掉 1.16.5。 */
+    /** Version prefix match: "1.18.2" hits "1.18". Longest match wins, so "1.1" cannot eat 1.16.5. */
     fun measuredOrNull(version: String): Measured? {
         measured[version]?.let { return it }
         return measured.entries
@@ -35,10 +35,10 @@ data class DeviceProfile(
 }
 
 /**
- * 整体档位表 + 匹配逻辑。
+ * The whole profile table plus matching logic.
  *
- * 匹配优先级：SoC 别名 > 机型名 > GPU 名。GPU 名单独不足以定位 SoC
- * （Mali-G57 出现在好几个联发科芯片上），所以只是加分项，不是主键。
+ * Match priority: SoC alias > device name > GPU name. A GPU name alone cannot pin down an
+ * SoC (Mali-G57 appears on several MediaTek chips), so it only adds points, never decides.
  */
 class ProfileTable(val profiles: List<DeviceProfile>) {
 
@@ -49,7 +49,7 @@ class ProfileTable(val profiles: List<DeviceProfile>) {
     fun byId(id: String): DeviceProfile? = profiles.firstOrNull { it.id == id }
 
     /**
-     * 返回最匹配的档位；都不匹配时返回 generic（永不返回 null，调用方不必处处判空）。
+     * Returns the best-matching profile, or generic if nothing matches (never null, so callers need no null checks).
      */
     fun match(spec: DeviceSpec): DeviceProfile {
         val socKeyUpper = spec.socKey.uppercase()
@@ -60,16 +60,16 @@ class ProfileTable(val profiles: List<DeviceProfile>) {
         for (p in profiles) {
             if (p.id == "generic") continue
             var score = 0
-            // SoC：别名命中，权重最高
+            // SoC: alias hit, highest weight
             if (p.soc.isNotBlank() && socKeyUpper.contains(p.soc.uppercase())) score += 100
             for (alias in p.socAliases) {
                 if (alias.isNotBlank() && socKeyUpper.contains(alias.uppercase())) score += 90
             }
-            // 机型：命中说明就是这台机器
+            // Device: a hit means it is exactly this machine
             for (d in p.devices) {
                 if (d.isNotBlank() && modelUpper.contains(d.substringAfterLast(' ').uppercase())) score += 80
             }
-            // GPU：只作辅证
+            // GPU: corroboration only
             if (p.gpu.isNotBlank() && spec.glRenderer.contains(p.gpu, ignoreCase = true)) score += 40
 
             if (score > bestScore) {
@@ -77,12 +77,12 @@ class ProfileTable(val profiles: List<DeviceProfile>) {
                 best = p
             }
         }
-        // 只靠 GPU 命中（40 分）不足以认定同一颗 SoC，回落到 generic
+        // A GPU-only hit (40 points) cannot establish the same SoC; fall back to generic
         return if (bestScore >= 80) best!! else generic
     }
 
     companion object {
-        /** 解析 device_profiles.json 的全文。失败抛 [JsonParseException] / [IllegalArgumentException]。 */
+        /** Parses the whole device_profiles.json. Throws [JsonParseException] / [IllegalArgumentException] on failure. */
         fun parse(json: String): ProfileTable {
             val root = MiniJson.parse(json) as? Map<*, *> ?: throw IllegalArgumentException("根节点不是对象")
             val rawProfiles = root["profiles"] as? List<*> ?: throw IllegalArgumentException("缺少 profiles 数组")

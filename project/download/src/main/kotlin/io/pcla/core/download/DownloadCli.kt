@@ -3,9 +3,9 @@ package io.pcla.core.download
 import java.io.File
 
 /**
- * 命令行入口，用来在真机上验证引擎：
- *   java -cp ... DownloadCliKt <url> <目标路径> [sha1]
- * 打印分档、线程数、进度百分比与最终结果。
+ * Command-line entry point for verifying the engine on a real device:
+ *   java -cp ... DownloadCliKt <url> <dest path> [sha1]
+ * Prints the tier, thread count, progress percentage and the final result.
  */
 fun main(args: Array<String>) {
     if (args.size < 3) {

@@ -26,11 +26,12 @@ import java.net.URL
 import java.security.MessageDigest
 
 /**
- * 从零装一个版本：manifest → 版本 json → 库/资源/client.jar → 解 natives → 拼命令。
+ * Install a version from scratch: manifest → version json → libraries/assets/client.jar →
+ * extract natives → assemble the command line.
  *
- * 网络请求刻意用 HttpURLConnection 而不是复用 download 模块：
- * 这里是「几个 json + 上千个小文件」的批量场景，需要的是并发铺满和
- * 单文件失败重试，和下载引擎那套分片/限流不是一回事。
+ * Network requests deliberately use HttpURLConnection instead of reusing the download module:
+ * this is a bulk "a few json files plus a thousand small files" case that needs wide concurrency
+ * and per-file retry, not the download engine's segmentation and rate limiting.
  */
 object GameInstaller {
 
@@ -55,7 +56,7 @@ object GameInstaller {
         val javaMajor: Int,
     )
 
-    /** Mojang 的下载地址在国内经常超时，统一换成 BMCLAPI 镜像。 */
+    /** Mojang download URLs often time out in China, so everything goes through the BMCLAPI mirror. */
     fun mirrored(url: String): String = url
         .replace("https://launchermeta.mojang.com", BMCL)
         .replace("https://piston-meta.mojang.com", BMCL)
@@ -132,7 +133,7 @@ object GameInstaller {
             nativesDir = listOf(
                 nativesDir.absolutePath,
                 lwjgl.nativesDir,
-                // jniLibs 里解出来的 libpojavexec.so 在这；glfw 的输入回调靠它
+                // libpojavexec.so extracted from jniLibs lives here; glfw's input callbacks rely on it
                 context.applicationInfo.nativeLibraryDir,
             ).joinToString(":"),
             gameDir = root.absolutePath,
@@ -149,11 +150,12 @@ object GameInstaller {
     }
 
     /**
-     * 从磁盘上已经下好的文件重建 [Installed]，不联网。
+     * Rebuild [Installed] from the files already downloaded on disk, no network.
      *
-     * 为什么需要它：下载那一步在启动页，真正起 JVM 的是另一个 Activity
-     * （全屏 Surface 在那边），Intent 里塞不下 LaunchPlan，所以按版本号
-     * 重新拼一遍。这里只读本地 json 和已下载的库，不触发任何请求。
+     * Why it exists: the download step is on the launcher page, but the JVM is actually started
+     * by another Activity (the full-screen Surface lives there) and a LaunchPlan doesn't fit in
+     * an Intent, so we reassemble it from the version id. Only local json and downloaded
+     * libraries are read; no request is made.
      */
     fun assemble(context: Context, versionId: String): Installed {
         val root = File(context.filesDir, "game")
@@ -167,7 +169,7 @@ object GameInstaller {
         val assets = if (indexFile.isFile) AssetIndex.parse(indexFile.readText()) else emptyList()
 
         val (runtimeMeta, _) = AndroidRuntime.strip(meta)
-        // clientUrl 这里只是个占位（GamePlan 用它算相对路径），不会再下载
+        // clientUrl is only a placeholder here (GamePlan uses it for relative paths); nothing re-downloads
         val plan0 = GamePlan.build(runtimeMeta, assets, versionId, clientUrl = meta.clientUrl?.let { mirrored(it) })
 
         val nativesDir = File(root, "natives")
@@ -192,16 +194,16 @@ object GameInstaller {
         return Installed(versionId, root, launchPlan, major)
     }
 
-    /** 三处 natives 都进 java.library.path：清单解出来的、随包 LWJGL 的、jniLibs 的。 */
+    /** All three natives dirs go into java.library.path: manifest-extracted, bundled LWJGL, jniLibs. */
     fun nativesPath(context: Context, root: File): String = listOf(
-        // 顺序即优先级：随包的 arm64 LWJGL 必须排在清单解出来的 x86 前面，
-        // 否则同名 liblwjgl.so 会先命中 x86 那份（wrong ELF class）
+        // order is priority: the bundled arm64 LWJGL must come before the manifest-extracted x86,
+        // otherwise a same-named liblwjgl.so resolves to the x86 one (wrong ELF class)
         File(root, AndroidRuntime.BUNDLE_DIR + "/natives").absolutePath,
         File(root, "natives").absolutePath,
         context.applicationInfo.nativeLibraryDir,
     ).joinToString(":")
 
-    /** 解包 JRE 并起进程；日志按行回调。返回的 Process 由调用方负责 waitFor。 */
+    /** Unpack the JRE and start the process; logs stream line by line. Caller must waitFor it. */
     suspend fun launch(
         context: Context,
         installed: Installed,
@@ -221,12 +223,12 @@ object GameInstaller {
             .directory(installed.root)
             .redirectErrorStream(true)
             .apply {
-                // Android 版 JRE 是 bionic 链接的，不设这两项连 libjli 都找不到
+                // the Android JRE is bionic-linked; without these two even libjli won't be found
                 environment()["LD_LIBRARY_PATH"] = RuntimePack.libraryPath(runtime)
                 environment()["HOME"] = installed.root.absolutePath
                 environment()["TMPDIR"] = File(installed.root, "tmp").apply { mkdirs() }.absolutePath
-                // 让 LWJGL 的 GL 桥去载 gl4es（jniLibs 里的 libgl4es_114.so），
-                // 走 GLES2 翻译 OpenGL 1.16.5 需要的那部分
+                // let LWJGL's GL bridge load gl4es (libgl4es_114.so from jniLibs), translating
+                // through GLES2 the slice of OpenGL that 1.16.5 needs
                 environment()["LIBGL_NAME"] = "libgl4es_114.so"
                 environment()["LIBGL_ES"] = "2"
                 environment()["LIBGL_NOINIT"] = "0"
@@ -238,7 +240,7 @@ object GameInstaller {
         process
     }
 
-    // ---- 网络与文件 ----
+    // ---- network and files ----
 
     private fun fetchText(url: String): String = URL(url).openConnection().let { conn ->
         (conn as HttpURLConnection).apply {

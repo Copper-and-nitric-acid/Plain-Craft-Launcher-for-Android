@@ -1,23 +1,23 @@
 package io.pcla.core.download
 
 /**
- * 下载引擎的可调参数。玩家能在设置里改的只有并发数，其余是防呆边界。
+ * Download engine knobs. Only the thread count is player-editable; the rest are guard rails.
  *
- * 为什么默认值这么定：本机实测（BMCLAPI，10.18MB 文件）
- *   单连接 1.37MB/s，4 段 1.27MB/s，8 段 0.90MB/s
- * 说明瓶颈在 wifi 链路（约 10.4Mbps），单文件切再多线程只会互相抢带宽。
- * 所以：小文件不切、中文件 4 路、大文件才 8 路，而且都给玩家留了开关。
+ * Why these defaults: measured here (BMCLAPI, 10.18MB file): 1 connection 1.37MB/s, 4 segments
+ * 1.27MB/s, 8 segments 0.90MB/s — the bottleneck is the wifi link (~10.4Mbps), so splitting a
+ * single file into more threads only fights over bandwidth: small files uncut, medium 4 ways,
+ * large files 8 ways, and the player gets a switch anyway.
  */
 data class DownloadConfig(
-    /** 小于这个大小强制单线程（切段开销 > 收益）。 */
+    /** Below this size force one thread (segmenting costs more than it saves). */
     val singleThreadMaxBytes: Long = 10L * 1024 * 1024,
-    /** 超过这个大小进入「火力全开」档。 */
+    /** Above this size, go to the "everything on" tier. */
     val parallelMaxBytes: Long = 60L * 1024 * 1024,
-    /** 中文件默认并发。 */
+    /** Default concurrency for medium files. */
     val parallelThreads: Int = 4,
-    /** 大文件默认并发。 */
+    /** Default concurrency for large files. */
     val largeFileThreads: Int = 8,
-    /** 每个分片的最小字节数。太碎会让 Range 请求本身成为开销。 */
+    /** Minimum bytes per segment; too fine and the Range requests themselves become the cost. */
     val minSegmentBytes: Long = 1L * 1024 * 1024,
     val minThreads: Int = 1,
     val maxThreads: Int = 16,
@@ -26,8 +26,8 @@ data class DownloadConfig(
     val maxRetries: Int = 3,
 ) {
     /**
-     * 玩家可能输入 9999。这里统一夹逼，绝不把非法值传进线程池——
-     * newFixedThreadPool(9999) 会直接让进程死在 OOM 上，而不是「慢一点」。
+     * The player might type 9999. Clamp here, never feed an illegal value to the pool —
+     * newFixedThreadPool(9999) kills the process with OOM instead of just running slower.
      */
     fun sanitized(): DownloadConfig = copy(
         parallelThreads = parallelThreads.coerceIn(minThreads, maxThreads),
@@ -39,7 +39,7 @@ data class DownloadConfig(
     )
 
     companion object {
-        /** 设置页里给玩家看的边界，和 sanitized() 用同一组常量。 */
+        /** Bounds shown on the settings page; same constants as sanitized(). */
         fun validateThreads(raw: Int, cfg: DownloadConfig = DownloadConfig()): Int =
             raw.coerceIn(cfg.minThreads, cfg.maxThreads)
 
@@ -56,7 +56,7 @@ data class DownloadConfig(
 
 enum class DownloadTier { SINGLE, PARALLEL, TURBO }
 
-/** 闭区间 [start, end]，单位字节。 */
+/** Inclusive range [start, end], in bytes. */
 data class ByteRange(val index: Int, val start: Long, val end: Long) {
     val length: Long get() = end - start + 1
     init {
@@ -76,8 +76,8 @@ object SegmentPlanner {
     }
 
     /**
-     * 玩家设置并发后，实际能开几个线程还要受「文件够不够切」约束：
-     * 一个 10MB 的文件按 16 路切，每片只有 640KB，请求开销比省下来的时间还多。
+     * The player's thread count is further capped by whether the file can be split at all:
+     * 16 ways over 10MB leaves 640KB per piece, and request overhead beats the time saved.
      */
     fun threadsFor(sizeBytes: Long, cfg: DownloadConfig): Int {
         val c = cfg.sanitized()
@@ -90,7 +90,7 @@ object SegmentPlanner {
         return minOf(wanted, maxUseful).coerceIn(1, c.maxThreads)
     }
 
-    /** 把文件均分成 n 段，最后一段吃掉余数，保证不重叠、不遗漏。 */
+    /** Split the file into n even segments; the last takes the remainder, so no overlap or gaps. */
     fun plan(sizeBytes: Long, cfg: DownloadConfig): List<ByteRange> {
         if (sizeBytes <= 0L) return emptyList()
         val n = threadsFor(sizeBytes, cfg)

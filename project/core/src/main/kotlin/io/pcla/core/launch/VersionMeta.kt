@@ -3,8 +3,8 @@ package io.pcla.core.launch
 import io.pcla.core.json.MiniJson
 
 /**
- * 版本 json 里 PCLA 真正要用到的部分。故意不追求字段齐全：
- * 下载、校验、natives 解压各自有专门模块，这里只负责「读对」。
+ * The part of a version json PCLA actually needs. Deliberately not exhaustive:
+ * download, verification and natives extraction each have their own module; this one only has to "read it right".
  */
 data class VersionMeta(
     val id: String,
@@ -43,7 +43,7 @@ data class VersionMeta(
     }
 }
 
-/** 参数可以是纯字符串，也可以是带 rules 的对象。 */
+/** An argument is either a plain string or an object with rules. */
 data class Arg(val value: String, val rules: List<Rule> = emptyList()) {
     companion object {
         fun parseList(raw: Any?): List<Arg> {
@@ -97,8 +97,8 @@ data class Rule(
 }
 
 /**
- * 一条库声明。老格式用 natives 映射，新格式用 classifiers，
- * 两种都要认——1.16 及以前的 json 全是老格式。
+ * One library declaration. The old format uses a natives map, the new one uses classifiers;
+ * both must be read — every json up to 1.16 uses the old format.
  */
 data class Library(
     val name: String,
@@ -165,7 +165,7 @@ data class LibCoordinate(val group: String, val artifact: String, val version: S
     }
 }
 
-/** 目标平台的规则判定。PCLA 只跑 Android/arm64，但保留参数便于自检。 */
+/** Rule matching for the target platform. PCLA only runs Android/arm64, but the parameters stay for self-checks. */
 object Platform {
     const val OS = "linux"
     const val ARCH = "aarch64"
@@ -179,7 +179,7 @@ object Platform {
     }
 
     fun matches(rule: Rule, os: String = OS, arch: String = ARCH): Boolean {
-        if (rule.features.isNotEmpty() && rule.features.values.any { it }) return false // 特性默认全关
+        if (rule.features.isNotEmpty() && rule.features.values.any { it }) return false // features are all off by default
         val wantOs = rule.osName ?: return true
         if (!wantOs.equals(os, ignoreCase = true)) return false
         val wantArch = rule.osArch ?: return true

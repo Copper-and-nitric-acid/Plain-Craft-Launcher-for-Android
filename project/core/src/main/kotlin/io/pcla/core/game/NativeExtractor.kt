@@ -4,11 +4,11 @@ import java.io.File
 import java.util.zip.ZipFile
 
 /**
- * 把 natives jar 里的 .so 解到指定目录。
+ * Extracts the .so files from a natives jar into a given directory.
  *
- * 为什么不走 jniLibs：Android 的 jniLibs 里同名 .so 只能有一份，
- * 而 MC 的库之间会互相覆盖（同一个 liblwjgl.so 不同版本）。
- * 由启动器自己解到私有目录，再交给 -Djava.library.path。
+ * Why not jniLibs: Android's jniLibs allows only one .so per name,
+ * while MC's libraries overwrite each other (different versions of the same liblwjgl.so).
+ * The launcher extracts them into its private dir itself and hands that to -Djava.library.path.
  */
 object NativeExtractor {
 

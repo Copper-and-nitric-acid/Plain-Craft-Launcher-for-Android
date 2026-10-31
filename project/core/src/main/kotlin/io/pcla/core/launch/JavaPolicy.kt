@@ -1,15 +1,15 @@
 package io.pcla.core.launch
 
 /**
- * Minecraft 版本 → 需要的 Java 大版本。
+ * Minecraft version → required Java major version.
  *
- * 依据 Mojang 的实际要求：
+ * Based on Mojang's actual requirements:
  *  - ≤ 1.16.5      → Java 8
- *  - 1.17 – 1.20.4 → Java 17（1.17 起强制 16/17，1.18 起正式 17）
+ *  - 1.17 – 1.20.4 → Java 17 (16/17 forced from 1.17, 17 official from 1.18)
  *  - ≥ 1.20.5      → Java 21
- * Java 25 目前没有正式版 MC 要求，FCL 打包的是给快照/未来版本留的，所以这里不映射。
+ * No released MC version requires Java 25 yet; FCL bundles it for snapshots/future versions, so it is not mapped here.
  *
- * 映射错了不是「慢一点」，是直接崩：`Unsupported class file major version 65`。
+ * A wrong mapping is not "a bit slower", it crashes: `Unsupported class file major version 65`.
  */
 object JavaPolicy {
 
@@ -18,7 +18,7 @@ object JavaPolicy {
     const val JAVA_21 = 21
     const val JAVA_25 = 25
 
-    /** 未知版本一律按 8 处理——宁可让用户在 1.17+ 上看到明确的启动失败，也不要猜 21 崩在类加载。 */
+    /** Unknown versions are treated as 8 — better a clear launch failure on 1.17+ than guessing 21 and crashing in class loading. */
     fun requiredMajor(mcVersion: String): Int {
         val key = numericKey(mcVersion) ?: return JAVA_8
         return when {
@@ -28,7 +28,7 @@ object JavaPolicy {
         }
     }
 
-    /** "1.20.5" → 2005；"1.16.5" → 1605；快照（23w45a）或非法输入 → null。 */
+    /** "1.20.5" → 2005; "1.16.5" → 1605; snapshot (23w45a) or invalid input → null. */
     private fun numericKey(version: String): Int? {
         val m = Regex("""^1\.(\d+)(?:\.(\d+))?$""").find(version.trim()) ?: return null
         val minor = m.groupValues[1].toIntOrNull() ?: return null
@@ -36,9 +36,9 @@ object JavaPolicy {
         return minor * 100 + patch
     }
 
-    /** 随包 assets 里的路径；只有 arm64 分片，因为 abiFilters 只有 arm64-v8a。 */
+    /** Path inside the bundled assets; arm64 shard only, because abiFilters is arm64-v8a only. */
     fun assetPath(major: Int): String = "java/jre$major/bin-arm64.tar.xz"
 
-    /** 与 assets 目录一致，用于体检页展示「本包内置了哪几套运行时」。 */
+    /** Matches the assets directory; used by the health page to show which runtimes are built in. */
     fun bundledMajors(): List<Int> = listOf(JAVA_8, JAVA_17)
 }

@@ -62,7 +62,7 @@ private val DarkColors = darkColorScheme(
     onErrorContainer = Color(0xFFFFDAD5),
 )
 
-/** PCL 正文固定 13px、标题 15、说明 11。这里照搬，不用 Material 默认的 16/14。 */
+/** PCL body text is fixed at 13px, titles 15, captions 11. Copied as-is instead of Material's default 16/14. */
 private val PclTypography = Typography(
     titleLarge = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Medium, lineHeight = 26.sp),
     titleMedium = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, lineHeight = 21.sp),
@@ -75,7 +75,7 @@ private val PclTypography = Typography(
     labelSmall = TextStyle(fontSize = 11.sp),
 )
 
-/** 圆角对齐 PCL：按钮 3、卡片 6、胶囊 13.5（取 14）。 */
+/** Corners match PCL: buttons 3, cards 6, pills 13.5 (rounded to 14). */
 private val PclShapes = Shapes(
     extraSmall = RoundedCornerShape(3.dp),
     small = RoundedCornerShape(3.dp),

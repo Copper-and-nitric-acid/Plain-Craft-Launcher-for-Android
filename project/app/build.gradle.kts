@@ -7,7 +7,7 @@ plugins {
 android {
     namespace = "io.pcla.app"
     compileSdk = 34
-    // 只需要 ndk-build 里的 clang + jni.h，为的是把 Surface 交给 libpojavexec.so
+    // Only need clang + jni.h from the NDK, to hand the Surface to libpojavexec.so
     ndkVersion = "27.0.12077973"
 
     defaultConfig {
@@ -29,7 +29,7 @@ android {
 
     buildFeatures {
         compose = true
-        // AGP 8 默认不生成 BuildConfig，顶栏版本号要读它
+        // AGP 8 does not generate BuildConfig by default; the top bar reads the version from it
         buildConfig = true
     }
 
@@ -49,8 +49,8 @@ android {
     }
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        // 老式打包：安装时把 lib*.so 解压到 nativeLibraryDir，
-        // Pojav 系的 dlopen 依赖真实文件路径，不能只在 APK 里映射。
+        // Legacy packaging: lib*.so is extracted into nativeLibraryDir at install time;
+        // Pojav-family dlopen needs a real file path, not just APK mapping.
         jniLibs.useLegacyPackaging = true
     }
 }

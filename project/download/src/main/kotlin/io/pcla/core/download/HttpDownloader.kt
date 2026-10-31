@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.min
 
-/** 下载结果。所有失败都带得上「为什么」，因为玩家看到的应该是原因，不是堆栈。 */
+/** Download result. Every failure carries a "why": the player should see a reason, not a stack trace. */
 sealed interface DownloadOutcome {
     data class Success(val file: File, val bytes: Long, val sha1: String?, val forced: Boolean = false) : DownloadOutcome
     data class HashMismatch(
@@ -26,7 +26,7 @@ sealed interface DownloadOutcome {
     data object Cancelled : DownloadOutcome
 }
 
-/** 玩家在「下载不对劲」弹窗里的三个选项。 */
+/** The three options in the player's "download looks wrong" dialog. */
 enum class UserChoice { DELETE_BAD_FILE, SHOW_URL, FORCE_CONTINUE }
 
 fun interface IssueHandler {
@@ -34,20 +34,21 @@ fun interface IssueHandler {
 }
 
 /**
- * 分段下载引擎。
+ * Segmented download engine.
  *
- * 线程数、阈值全部来自 [DownloadConfig]，不写死——玩家的甜点因机器而异，
- * 但入口都过 [DownloadConfig.sanitized]，9999 这种输入会被夹到上限而不是让进程 OOM。
+ * Thread counts and thresholds come from [DownloadConfig], never hard-coded — the player's sweet
+ * spot varies per device, but every entry point goes through [DownloadConfig.sanitized], so 9999
+ * is clamped instead of OOM-ing the process.
  *
- * 落盘策略：每个分片写自己的 .part 文件，最后顺序拼接。
- * 原因是 /sdcard 是 FUSE，多个线程对同一个 RandomAccessFile 随机 seek 的写放大极高，
- * 顺序写单文件反而更快（实测 8 线程实测 19,076,437 B/s，5 秒 99MB）。
+ * Write strategy: each segment writes its own .part file, merged in order at the end.
+ * Reason: /sdcard is FUSE, so several threads seeking randomly in one RandomAccessFile cause
+ * heavy write amplification; sequential writes are faster (8 threads: 19,076,437 B/s, 99MB in 5s).
  */
 class HttpDownloader(
     private val config: DownloadConfig = DownloadConfig(),
     private val client: OkHttpClient = defaultClient(config),
     private val log: (String) -> Unit = {},
-    /** 撞到 429/503 时回调一次，调度层据此收缩并发。 */
+    /** Called once on 429/503; the scheduler shrinks concurrency accordingly. */
     private val onThrottled: (() -> Unit)? = null,
 ) {
     private val cfg = config.sanitized()
@@ -55,7 +56,7 @@ class HttpDownloader(
 
     data class Probe(val sizeBytes: Long, val rangeSupported: Boolean)
 
-    /** 探测大小与是否支持 Range。探测失败不算致命——退回单连接整文件下载。 */
+    /** Probe size and Range support. A failed probe is not fatal: fall back to single-connection. */
     fun probe(url: String): Probe? {
         runCatching {
             client.newCall(Request.Builder().url(url).head().build()).execute().use { resp ->
@@ -65,7 +66,7 @@ class HttpDownloader(
                 return Probe(len, ranges)
             }
         }
-        // 有些 CDN 拒绝 HEAD，再试一次 Range: bytes=0-0
+        // some CDNs reject HEAD; retry with Range: bytes=0-0
         runCatching {
             client.newCall(
                 Request.Builder().url(url).header("Range", "bytes=0-0").build()
@@ -86,7 +87,7 @@ class HttpDownloader(
         onIssue: IssueHandler? = null,
         isCancelled: () -> Boolean = { false },
     ): DownloadOutcome {
-        // 1. 地址拦截：局域网 / 169.254 在下载前就挡住，不要等超时 30 秒再报错
+        // 1. URL check: block LAN / 169.254 up front instead of waiting out a 30s timeout
         val verdict = NetworkGuard.checkUrl(url)
         if (verdict !is NetworkGuard.Verdict.Ok) {
             val msg = NetworkGuard.messageOf(verdict) ?: "地址不可用"
@@ -97,7 +98,7 @@ class HttpDownloader(
         val total = probe?.sizeBytes ?: -1L
         val size = if (total > 0) total else 0L
         if (total > 0) {
-            // 空间检查：留 5% 余量，磁盘满写到一半比下不动更糟
+            // space check: keep a 5% margin; running out of disk mid-write is worse than not downloading
             val usable = dest.parentFile?.usableSpace ?: 0L
             if (usable in 1 until (total * 105 / 100)) {
                 return DownloadOutcome.Failed("磁盘空间不够：需要 ${total * 105 / 100} 字节，只剩 $usable")
@@ -147,7 +148,7 @@ class HttpDownloader(
             }
             if (isCancelled()) return DownloadOutcome.Cancelled
 
-            // 2. 拼接 + 校验：先写临时文件，校验通过才改名，绝不覆盖已有文件
+            // 2. merge + verify: write a temp file, rename only after it verifies, never overwrite existing
             val merged = File(dest.parentFile, "${dest.name}.tmp")
             mergeParts(ranges, partsDir, merged)
             val checkResult = Checksum.verify(merged, expectedSha1, probe.sizeBytes)
@@ -161,7 +162,7 @@ class HttpDownloader(
                         }
                         UserChoice.FORCE_CONTINUE -> {
                             log("⚠️ 高风险：玩家选择无视哈希不匹配，继续使用 ${merged.name}")
-                            val len = merged.length()   // 改名后 merged 就不存在了，先取
+                            val len = merged.length()   // merged no longer exists after the rename, so take the length first
                             publish(merged, dest)
                             DownloadOutcome.Success(dest, len, checkResult.actual, forced = true)
                         }
@@ -177,7 +178,7 @@ class HttpDownloader(
                     DownloadOutcome.Success(dest, len, checkResult.sha1)
                 }
                 Checksum.HashResult.NoHashProvided -> {
-                    // 没有官方哈希不等于「验证通过」，如实返回 null
+                    // no official hash does not mean "verified": return null honestly
                     val len = merged.length()
                     publish(merged, dest)
                     partsDir.deleteRecursively()
@@ -189,7 +190,7 @@ class HttpDownloader(
         }
     }
 
-    /** 单连接整文件下载：给不支持 Range 的源兜底。 */
+    /** Single-connection whole-file download: fallback for sources without Range support. */
     private fun singleStream(
         url: String,
         dest: File,
@@ -232,7 +233,7 @@ class HttpDownloader(
         }
     }
 
-    /** 取一个分片，支持 .part 续传；429 用指数退避而不是死等 10 秒。 */
+    /** Fetch one segment, resumable via .part; 429 backs off exponentially instead of one flat 10s wait. */
     private fun fetchRange(
         url: String,
         range: ByteRange,
@@ -260,7 +261,7 @@ class HttpDownloader(
                         attempt++
                         return@use
                     }
-                    if (resp.code == 416) {   // 服务器认为已下完
+                    if (resp.code == 416) {   // server thinks it's already complete
                         return
                     }
                     if (!resp.isSuccessful && resp.code != 206) {
@@ -300,7 +301,7 @@ class HttpDownloader(
         }
     }
 
-    /** 原子改名：同目录 rename 才能保证不留下半个文件。 */
+    /** Atomic rename: only a same-directory rename guarantees no half-written file is left over. */
     private fun publish(tmp: File, dest: File) {
         if (dest.exists()) dest.delete()
         if (!tmp.renameTo(dest)) {
@@ -310,7 +311,7 @@ class HttpDownloader(
     }
 
     companion object {
-        /** 不暴露 OkHttp 类型的入口，app 模块用这个，避免 okhttp 泄漏到上层 classpath。 */
+        /** Entry point that hides OkHttp types; the app module uses this so okhttp doesn't leak upward. */
         fun create(
             config: DownloadConfig = DownloadConfig(),
             log: (String) -> Unit = {},

@@ -1,10 +1,10 @@
 package io.pcla.core.bench
 
 /**
- * 把 GC 统计渲染成给人看的报告。
+ * Renders GC stats into a human-readable report.
  *
- * 刻意不输出 JVM 原始字段名：这东西的读者是「觉得自己手机卡」的人，
- * 他们需要的是「你的卡顿里有 12% 是 GC 造成的」，不是 out_of_region_events。
+ * Raw JVM field names are deliberately not printed: the reader is someone who feels
+ * their phone lagging; they need "12% of your stutter is GC", not out_of_region_events.
  */
 object GcReport {
 
@@ -41,8 +41,8 @@ object GcReport {
     }
 
     /**
-     * 判定阈值来自实测：MT6833V 上 1.18 那次 690s 里停顿占 6.7%，
-     * 用户感知是「隔几秒顿一下」；而 3% 以下基本感觉不到。
+     * Thresholds come from measurement: on MT6833V, 1.18 paused 6.7% of that 690s run,
+     * felt as "a hitch every few seconds"; below 3% it is basically unnoticeable.
      */
     fun verdict(s: GcSummary): String = when {
         s.maxMs > 200 -> "结论：存在超过 200ms 的单次停顿，这种停顿会被肉眼看到（不是「手机烂」）。"

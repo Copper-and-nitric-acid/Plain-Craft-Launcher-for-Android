@@ -14,8 +14,8 @@ import io.pcla.core.launch.Recommendation
 import io.pcla.core.launch.VersionPolicy
 
 /**
- * 一次探测的全部结果。两个页面共用同一份——各探各的会出现两套堆上限。
- * ranking 按综合分（平均帧 + 谷底×2）降序，直接来自实测数据。
+ * Everything one probe produces. Both pages share one copy — probing separately would yield two different heap caps.
+ * ranking is sorted by composite score (average fps + trough×2) descending, straight from measured data.
  */
 internal data class Report(
     val spec: DeviceSpec,

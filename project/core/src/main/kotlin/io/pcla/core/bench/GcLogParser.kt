@@ -3,14 +3,14 @@ package io.pcla.core.bench
 enum class GcKind { YOUNG, MIXED, REMARK, CLEANUP, FULL, CONCURRENT, OTHER }
 
 /**
- * 一条 GC 日志事件。
+ * One GC log event.
  *
- * 关键区别：[GcKind.CONCURRENT] 是并发阶段（不停世界，不掉帧），
- * 其余都是 STW。早期分析时把 Concurrent Mark Cycle 当成停顿，会得出
- * 「最长停顿 8.2 秒」这种荒谬结论——实际最长 STW 只有 298ms。
+ * Key distinction: [GcKind.CONCURRENT] is a concurrent phase (no stop-the-world, no dropped
+ * frames); everything else is STW. Early analysis treated Concurrent Mark Cycle as a pause and
+ * produced the absurd "longest pause 8.2s" — the real longest STW was only 298ms.
  */
 data class GcEvent(
-    /** JVM 启动后的毫秒数 */
+    /** Milliseconds since JVM start */
     val atMillis: Long,
     val durationMs: Double,
     val kind: GcKind,
@@ -40,16 +40,16 @@ data class GcSummary(
     val maxConcurrentMs: Double,
     val clusters: List<Cluster>,
 ) {
-    /** 超过 3% 的墙钟时间在停顿，用户一定感知得到。 */
+    /** Over 3% of wall-clock time spent in pauses is definitely perceivable. */
     val isProblematic: Boolean get() = pctOfWall > 3.0 || maxMs > 100
 }
 
 /**
- * 解析 `-Xlog:gc` 输出。
+ * Parses `-Xlog:gc` output.
  *
- * 支持 JDK 9+ 统一日志格式（FCL 自带 jre17 用的就是这种）：
+ * Supports the JDK 9+ unified log format (what FCL's bundled jre17 emits):
  *   [2.572s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 113M->20M(2048M) 18.425ms
- * 以及 JDK 8 的 -Xloggc 格式（尽力而为，字段不全时对应字段给 null）。
+ * and the JDK 8 -Xloggc format (best effort; missing fields become null).
  */
 object GcLogParser {
 
@@ -57,7 +57,7 @@ object GcLogParser {
     private val JDK8 = Regex("""^\S+: ([\d.]+): \[(?:GC|Full GC) ?(?:pause)? ?\(?([^\])\d]*)\)?[^]]*?([\d.]+) secs]""")
     private val HEAP = Regex("""(\d+)M->(\d+)M""")
 
-    /** 已知的 GC 起因，顺序重要：先匹配更具体的。 */
+    /** Known GC causes; order matters — more specific ones match first. */
     private val CAUSES = listOf(
         "GCLocker Initiated GC", "Metadata GC Threshold", "G1 Evacuation Pause",
         "Prepare Mixed", "Concurrent Start", "Humongous Allocation",
@@ -126,7 +126,7 @@ object GcLogParser {
         val buckets = stw.groupBy { (it.atMillis / 1000).toInt() / clusterBucketSeconds }
         val clusters = buckets.entries
             .map { (k, v) -> Cluster(k * clusterBucketSeconds, (k + 1) * clusterBucketSeconds, v.sumOf { it.durationMs }, v.maxOf { it.durationMs }) }
-            .filter { it.totalMs >= 1000 } // 一桶内停顿过 1 秒才算「簇」，否则是正常波动
+            .filter { it.totalMs >= 1000 } // only >= 1000ms of pauses in one bucket is a "cluster"; else it is normal jitter
             .sortedByDescending { it.totalMs }
 
         return GcSummary(

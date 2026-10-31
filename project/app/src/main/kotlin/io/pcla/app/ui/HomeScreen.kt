@@ -52,8 +52,8 @@ internal fun HomeScreen(report: Report, onReload: () -> Unit) {
 }
 
 /**
- * 对标 PCL 启动页左栏的纵向节奏：标签 → 大字版本号 → 主按钮（54 高、蓝渐变）→ 灰色小字说明。
- * 主按钮在 PCL 里是「启动」，这里换成「重新探测」——本版本还不启动游戏，不做假按钮。
+ * Mirrors the vertical rhythm of PCL's launch-page left column: tags → large version number → primary button (54 high, blue gradient) → grey caption.
+ * The primary button is "Launch" in PCL; here it is "Re-probe" — this build does not start the game, so no fake button.
  */
 @Composable
 private fun VersionHero(report: Report, onReload: () -> Unit) {
@@ -135,7 +135,7 @@ private fun DiagCard(cfg: JvmConfig) {
     }
 }
 
-/** PCL 的设置页就是「灰色小标签 + 值」上下两行，两列排布。 */
+/** PCL's settings page stacks a grey label above its value, laid out in two columns. */
 @Composable
 private fun FieldGrid(items: List<Pair<String, String>>) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

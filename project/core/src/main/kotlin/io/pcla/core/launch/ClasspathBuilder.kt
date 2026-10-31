@@ -1,10 +1,10 @@
 package io.pcla.core.launch
 
 /**
- * 把版本 json 翻译成一条能直接交给 JVM 的命令行。
+ * Translate a version json into a command line the JVM can take directly.
  *
- * 刻意保持纯字符串运算（不碰 java.io）：natives 解压、文件是否存在
- * 由调用方负责，这样这段逻辑在容器里能用假路径跑完整的自检。
+ * Deliberately pure string work (no java.io): natives extraction and file existence
+ * are the caller's job, so this logic can run its full self-check in a container with fake paths.
  */
 data class LaunchPlan(
     val mainClass: String,
@@ -25,10 +25,10 @@ object ClasspathBuilder {
         clientJar: String,
         placeholders: Map<String, String>,
         extraJars: List<String> = emptyList(),
-        // 清单里的 org.lwjgl:*:3.2.2 是给桌面 x86 用的；我们换成了随包的 3.3.3（含 arm64 原生库）。
-        // 两套同时留在 classpath 上不是「兼容」，而是：3.2.2 的 x86 liblwjgl.so 会先被
-        // java.library.path 找到 → wrong ELF class；类也会 3.2.2 与 3.3.3 混着加载。
-        // 所以按坐标前缀整组剔掉，只留随包那一套。
+        // The manifest's org.lwjgl:*:3.2.2 is built for desktop x86; we swapped in the bundled 3.3.3 (with arm64 natives).
+        // Keeping both on the classpath is not "compatibility", it means: 3.2.2's x86 liblwjgl.so gets found first via
+        // java.library.path → wrong ELF class; classes also get mixed between 3.2.2 and 3.3.3.
+        // So drop the whole group by coordinate prefix and keep only the bundled set.
         skipGroups: Set<String> = setOf("org.lwjgl"),
     ): LaunchPlan {
         val entries = ArrayList<String>(extraJars)
@@ -41,8 +41,8 @@ object ClasspathBuilder {
             if (lib.nativeClassifier != null) {
                 val path = lib.nativePath
                 if (path == null) missing.add(lib.name) else natives.add(join(libRoot, path))
-                // 新格式里同一坐标可能既是普通库又是 natives（如 lwjgl），
-                // 这里只取 natives，普通 jar 由后面那条同名库提供。
+                // In the new format one coordinate can be both a regular library and natives (e.g. lwjgl);
+                // here we take only the natives; the plain jar comes from the same-named entry below.
                 if (lib.artifactPath == null) return@forEach
             }
             val path = lib.artifactPath
@@ -55,8 +55,8 @@ object ClasspathBuilder {
         entries.add(clientJar)
 
         val unresolved = ArrayList<String>()
-        // classpath 只能由这里算出，调用方传入的值一律覆盖，
-        // 否则会很自然地出现「占位符里的 cp 和 plan.classpath 不是同一个」的坑。
+        // The classpath can only be computed here; any value passed by the caller is overwritten,
+        // otherwise you naturally hit "the cp in the placeholders is not plan.classpath".
         val values = HashMap(placeholders).apply {
             this["classpath"] = entries.joinToString(":")
         }
@@ -76,7 +76,7 @@ object ClasspathBuilder {
         )
     }
 
-    /** 形如 dollar+{key} 的占位符替换；未知的保留原样并记账，方便在 UI 上报错而不是静默启动失败。 */
+    /** Replaces dollar+{key} placeholders; unknown ones are kept as-is and recorded, so the UI can report them instead of failing silently at launch. */
     fun substitute(text: String, values: Map<String, String>, unresolved: MutableList<String>? = null): String {
         val sb = StringBuilder(text.length)
         var i = 0
@@ -106,7 +106,7 @@ object ClasspathBuilder {
         return sb.toString()
     }
 
-    /** 启动时 JVM 侧最常用的一批占位符，缺省值全是「本机上真实存在」的路径。 */
+    /** The batch of placeholders the JVM side needs most at launch; defaults are all paths that really exist on this device. */
     fun placeholders(
         classpath: String,
         nativesDir: String,
@@ -135,7 +135,7 @@ object ClasspathBuilder {
         "auth_xuid" to "",
     )
 
-    /** 启动前的最低限度检查：任何一条不过，就不该按下启动键。 */
+    /** Minimum checks before launch: if any one fails, the launch button should not be pressed. */
     fun problems(plan: LaunchPlan): List<String> = buildList {
         if (plan.mainClass.isBlank()) add("mainClass 为空，版本 json 不完整")
         if (plan.classpath.isBlank()) add("classpath 为空")

@@ -12,15 +12,15 @@ import android.widget.FrameLayout
 import android.widget.TextView
 
 /**
- * 游戏窗口：一块全屏 SurfaceView + 同进程 JVM。
+ * The game window: one full-screen SurfaceView plus the in-process JVM.
  *
- * 为什么必须单独一个 Activity：`glfwCreateWindow` 要的是一块**正在显示**的
- * Surface。启动页那张 660x192 的小预览是给「检查」用的，尺寸和生命周期都不对；
- * 这里给它整屏、横屏、常亮，并且在 `surfaceCreated` 之后才把 Surface 交给
- * libpojavexec.so —— 顺序反了 native 里存的就是野指针。
+ * Why a separate Activity is mandatory: `glfwCreateWindow` wants a Surface that is **currently
+ * displayed**. The 660x192 preview on the launcher page is for "inspection" only, wrong size and
+ * wrong lifetime; here it gets full screen, landscape, keep-awake, and the Surface is handed to
+ * libpojavexec.so only after `surfaceCreated` — reversed, native stores a dangling pointer.
  *
- * 屏幕上的那几行字只是临时状态栏（JVM 一起来就盖住了），出问题又不方便连
- * logcat 时，它是唯一能看到「走到哪一步」的东西。
+ * The few lines of text on screen are just a temporary status bar (the JVM covers it once up);
+ * when something breaks and logcat isn't handy, it's the only way to see how far we got.
  */
 class GameActivity : Activity(), SurfaceHolder.Callback {
 
@@ -72,8 +72,8 @@ class GameActivity : Activity(), SurfaceHolder.Callback {
         val heapMb = intent.getIntExtra(EXTRA_HEAP, 2048)
         val f = holder.surfaceFrame
         log("Surface 已创建 ${f.width()}x${f.height()}")
-        // JVM 会一直跑到游戏退出，所以整段都放在工作线程；
-        // 这个 Activity 的 UI 线程只负责显示状态。
+        // the JVM runs until the game exits, so this whole block goes on a worker thread;
+        // this Activity's UI thread only displays status.
         Thread({
             try {
                 val err = SurfaceBridge.attach(holder.surface)

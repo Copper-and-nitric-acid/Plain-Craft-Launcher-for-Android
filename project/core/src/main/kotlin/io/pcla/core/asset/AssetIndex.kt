@@ -2,7 +2,7 @@ package io.pcla.core.asset
 
 import io.pcla.core.json.MiniJson
 
-/** assets/indexes/<name>.json 里的一个对象。 */
+/** One object inside assets/indexes/<name>.json. */
 data class AssetObject(val name: String, val hash: String, val size: Long)
 
 object AssetIndex {
@@ -17,7 +17,7 @@ object AssetIndex {
         }
     }
 
-    /** 对象在磁盘上的相对路径：objects/ab/abcdef...（前两位做分片目录）。 */
+    /** On-disk relative path of an object: objects/ab/abcdef... (first two chars are the shard dir). */
     fun relativePath(hash: String): String {
         if (hash.length < 2) return "objects/$hash"
         return "objects/${hash.substring(0, 2)}/$hash"

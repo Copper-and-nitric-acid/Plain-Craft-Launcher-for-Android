@@ -1,8 +1,8 @@
 package io.pcla.core.download
 
 /**
- * 下载 URL 的预检。不是安全防护，是「省事」：
- * 大部分「下载失败」其实一眼就能看出来，没必要等 30 秒超时再报网络错误。
+ * Pre-flight check of download URLs. Not a security guard, just convenience: most
+ * "download failed" cases are obvious at a glance, no need to wait out a 30s timeout first.
  */
 object NetworkGuard {
 
@@ -18,13 +18,13 @@ object NetworkGuard {
     fun checkHost(host: String?): Verdict {
         val h = host?.trim()?.removeSurrounding("[", "]") ?: return Verdict.Malformed("")
         if (h.isEmpty()) return Verdict.Malformed(h)
-        val m = ipv4.matchEntire(h) ?: return Verdict.Ok   // 域名放行，交给 DNS
+        val m = ipv4.matchEntire(h) ?: return Verdict.Ok   // domain, leave it to DNS
         val octets = m.destructured.toList().map { it.toIntOrNull() ?: return Verdict.Malformed(h) }
         if (octets.any { it !in 0..255 }) return Verdict.Malformed(h)
 
         val (a, b) = octets[0] to octets[1]
         return when {
-            // 169.254.0.0/16：拿不到 DHCP 时的自分配地址
+            // 169.254.0.0/16: self-assigned address when DHCP fails
             a == 169 && b == 254 -> Verdict.LinkLocal(h)
             // 10.0.0.0/8
             a == 10 -> Verdict.PrivateNetwork(h)
@@ -38,7 +38,7 @@ object NetworkGuard {
         }
     }
 
-    /** UI 文案。null 表示不用提示。 */
+    /** UI text. null means no prompt needed. */
     fun messageOf(v: Verdict): String? = when (v) {
         Verdict.Ok -> null
         is Verdict.PrivateNetwork -> "Hey Bro，这是局域网 IP，外网连不上。" +

@@ -3,12 +3,12 @@ package io.pcla.app
 import android.view.Surface
 
 /**
- * 把 Android 的 Surface 交给随包的 libpojavexec.so。
+ * Hand the Android Surface to the bundled libpojavexec.so.
  *
- * 入口名是 Java_org_lwjgl_glfw_CallbackBridge_setupBridgeWindow——JNI 的符号名
- * 由「声明 native 方法的类」决定，所以包里放了 app/src/main/java/org/lwjgl/glfw/
- * CallbackBridge.java 这个同名类，native 方法能正常解析（首选路径）。
- * src/main/cpp/surface_bridge.c 里的 dlopen + dlsym 是同一件事的兜底写法。
+ * The entry name is Java_org_lwjgl_glfw_CallbackBridge_setupBridgeWindow — a JNI symbol name is
+ * decided by the class declaring the native method, so the bundle ships a class of the same name,
+ * app/src/main/java/org/lwjgl/glfw/CallbackBridge.java, and the native method resolves (primary
+ * path). The dlopen + dlsym in src/main/cpp/surface_bridge.c is the fallback for the same thing.
  */
 object SurfaceBridge {
     init {
@@ -18,16 +18,16 @@ object SurfaceBridge {
     private external fun install(surface: Surface): Int
     private external fun probe(): String
 
-    /** libpojavexec.so 里有哪些 Surface 入口，给自检卡用。 */
+    /** Which Surface entry points libpojavexec.so has, for the self-check card. */
     fun describe(): String = runCatching { probe() }.getOrElse { "加载失败：${it.message}" }
 
     /**
-     * 反射调 `org.lwjgl.glfw.CallbackBridge.setupBridgeWindow(Object)`。
+     * Reflectively call `org.lwjgl.glfw.CallbackBridge.setupBridgeWindow(Object)`.
      *
-     * 为什么用反射而不是直接引用：那个类在 `src/main/java`（Java 源集），
-     * Kotlin 编译器对本模块 Java 源集的可见性受 AGP 版本与编译顺序影响
-     * （CI #44 就栽在 `Unresolved reference: lwjgl`），反射只依赖运行时
-     * 类是否存在，编译期零耦合；类没打进包时还有 dlsym 兜底。
+     * Why reflection instead of a direct reference: that class lives in `src/main/java` (the Java
+     * source set), and the Kotlin compiler's visibility into this module's Java sources depends on
+     * the AGP version and build order (CI #44 died on `Unresolved reference: lwjgl`); reflection
+     * only needs the class at runtime, zero compile-time coupling, and dlsym still backstops it.
      */
     private fun directAttach(surface: Surface): Throwable? = try {
         val cls = Class.forName("org.lwjgl.glfw.CallbackBridge")
@@ -39,11 +39,11 @@ object SurfaceBridge {
         t
     }
 
-    /** 返回 null 表示成功，否则是中文原因。 */
+    /** null means success; otherwise a Chinese-language reason. */
     fun attach(surface: Surface): String? {
         val direct = directAttach(surface)
         if (direct == null) return null
-        // 兜底：dlopen + dlsym
+        // fallback: dlopen + dlsym
         return when (val r = runCatching { install(surface) }.getOrElse { -99 }) {
             0 -> null
             -1 -> "两条路都失败：${direct.message}；dlopen libpojavexec.so 也失败"

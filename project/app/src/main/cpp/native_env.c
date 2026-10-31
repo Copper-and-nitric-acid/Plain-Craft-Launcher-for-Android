@@ -1,8 +1,8 @@
-// 同进程起 JVM 之前必须做的两件 native 事：
-//   1) setenv  —— 渲染器/库路径/临时目录都靠环境变量传，Java 侧改不了本进程的真环境
-//   2) dlopen  —— JLI 里是按 soname dlopen("libjli.so") 的，必须先把绝对路径的那份
-//                载进全局符号表，之后按 soname 才能命中。
-// 这两件事都没有 Java API 可用（System.load 只能按文件名从 nativeLibraryDir 找）。
+// Two native things that must happen before starting the JVM in-process:
+//   1) setenv  — renderer/library paths and temp dirs go through environment variables; Java cannot change this process's real env
+//   2) dlopen  — JLI dlopens "libjli.so" by soname, so the absolute-path copy must be loaded
+//                into the global symbol table first; only then does the soname lookup hit.
+// Neither has a Java API (System.load only resolves filenames from nativeLibraryDir).
 #include <jni.h>
 #include <dlfcn.h>
 #include <stdlib.h>
@@ -25,7 +25,7 @@ Java_io_pcla_app_NativeBootstrap_setenv(JNIEnv *env, jclass clazz, jstring key, 
     return r;
 }
 
-// 返回 handle（非 0 = 成功），失败返回 0 并把 dlerror 写进日志。
+// Returns the handle (non-zero = success); on failure returns 0 and logs dlerror.
 JNIEXPORT jlong JNICALL
 Java_io_pcla_app_NativeBootstrap_dlopen(JNIEnv *env, jclass clazz, jstring path) {
     (void) clazz;

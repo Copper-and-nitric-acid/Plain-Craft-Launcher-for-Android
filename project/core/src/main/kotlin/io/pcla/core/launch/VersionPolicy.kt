@@ -12,19 +12,19 @@ data class Recommendation(
 }
 
 /**
- * 版本推荐。
+ * Version recommendation.
  *
- * 这里不给「最新版」也不给「经典版」，而是按实测数据排：
- * score = 平均帧 + TNT 谷底 × 2（见 [io.pcla.core.device.Measured.score]）。
- * 权重之所以偏向谷底，是因为平均帧决定「爽不爽」，谷底决定「会不会砸手机」。
+ * It gives neither "latest" nor "classic" but ranks by measured data:
+ * score = average fps + TNT trough × 2 (see [io.pcla.core.device.Measured.score]).
+ * The weight favors the trough because average fps decides "is it fun", the trough decides "will the phone get smashed".
  *
- * 在这台 MT6833V 上算出来的顺序：
+ * Order computed on this MT6833V:
  *   1.16.5 (318) > 1.20.1 (289) > 1.12.2 (236) > 1.18 (228) > 1.19.2 (148)
- * 和肉测结论一致——这说明权重取对了，而不是先有结论再凑公式。
+ * It matches the hands-on conclusion — evidence the weights are right, not a formula fitted to a conclusion.
  */
 object VersionPolicy {
 
-    /** 分数差距在这个比例内视为并列，此时优先更新的版本（生态/模组兼容更好）。 */
+    /** Scores within this ratio count as tied; the newer version then wins (better ecosystem/mod compatibility). */
     private const val TIE_RATIO = 0.04
 
     fun pick(profile: DeviceProfile): Recommendation {
@@ -35,7 +35,7 @@ object VersionPolicy {
         val best = ranked.first()
         val top = best.second.score
         val tied = ranked.takeWhile { it.second.score >= top * (1 - TIE_RATIO) }
-        val winner = tied.last() // 并列时取版本号更高的那个
+        val winner = tied.last() // on a tie take the higher version number
         val alternatives = ranked.drop(1).take(2).map { it.first }
 
         val m = winner.second
@@ -48,8 +48,8 @@ object VersionPolicy {
     }
 
     /**
-     * 全量排序：分数降序，分数相同则版本号降序。
-     * verdict=AVOID 的版本保留在列表里（用户可能已经装了），由调用方决定是否展示。
+     * Full ranking: score descending, then version number descending on equal scores.
+     * verdict=AVOID versions stay in the list (the user may already have them installed); the caller decides whether to show them.
      */
     fun ranking(profile: DeviceProfile): List<Pair<String, io.pcla.core.device.Measured>> =
         profile.measured.values
@@ -57,7 +57,7 @@ object VersionPolicy {
             .sortedWith(compareByDescending<io.pcla.core.device.Measured> { it.score }.thenByDescending { it.version })
             .map { it.version to it }
 
-    /** 已安装实例里哪些版本值得留下（avoid 的标记出来给用户看）。 */
+    /** Which of the installed versions are worth keeping (mark AVOID ones for the user to see). */
     fun audit(profile: DeviceProfile, installed: List<String>): List<VersionAudit> =
         installed.map { v ->
             val m = profile.measuredOrNull(v)

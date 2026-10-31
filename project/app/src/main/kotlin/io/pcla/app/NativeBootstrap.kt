@@ -4,11 +4,11 @@ import android.content.Context
 import java.io.File
 
 /**
- * 同进程起 JVM 的「开机自检」：把 FCL 在 launchMinecraft 之前做的 native 准备照做一遍。
+ * "Power-on self-test" for the in-process JVM: redo FCL's native prep before launchMinecraft.
  *
- * 顺序和内容都对着 FCL 的 FCLauncher.setEnv / setUpJavaRuntime /
- * setupGraphicAndSoundEngine 来的（见 FCL 源码 1.3.1.8）。缺任何一步的表现都不是
- * 报错，而是「JVM 起来了但起不来游戏」或者「dlopen 找不到 libjli.so」。
+ * Order and content follow FCL's FCLauncher.setEnv / setUpJavaRuntime /
+ * setupGraphicAndSoundEngine (see FCL source 1.3.1.8). A missing step never shows up as an
+ * error, but as "the JVM starts yet the game won't" or "dlopen can't find libjli.so".
  */
 object NativeBootstrap {
     init {
@@ -19,7 +19,7 @@ object NativeBootstrap {
     private external fun dlopen(path: String): Long
     private external fun chdir(path: String): Int
 
-    /** 载入三个原生库。libfcl 必须最先，pojavexec 的 hook 依赖它注册的表。 */
+    /** Load the three native libs. libfcl must be first: pojavexec's hooks depend on its tables. */
     fun loadLibs(): List<String> {
         val loaded = ArrayList<String>()
         for (name in listOf("fcl", "pojavexec", "pojavexec_awt")) {
@@ -30,7 +30,7 @@ object NativeBootstrap {
         return loaded
     }
 
-    /** 环境变量 + 预 dlopen。返回人看的报告，逐条进日志。 */
+    /** Env vars + pre-dlopen. Returns a human-readable report, one line per step into the log. */
     fun prepare(context: Context, runtime: RuntimePack.Installed, gameDir: File): List<String> {
         val out = ArrayList<String>()
         val nativeDir = context.applicationInfo.nativeLibraryDir
@@ -48,7 +48,7 @@ object NativeBootstrap {
             "LD_LIBRARY_PATH" to libPath,
             "POJAV_NATIVEDIR" to nativeDir,
             "FCL_NATIVEDIR" to nativeDir,
-            // gl4es + GLES2 这一组是 FCL 里 ID_GL4ES 的默认值
+            // this gl4es + GLES2 group is FCL's default for ID_GL4ES
             "POJAV_RENDERER" to "opengles2",
             "LIBGL_ES" to "2",
             "LIBGL_MIPMAP" to "3",
@@ -62,7 +62,7 @@ object NativeBootstrap {
             out += "env $k=$v"
         }
 
-        // JRE 里所有 .so 都先载进全局符号表（FCL 的 setUpJavaRuntime 就是这么干的）
+        // load every .so in the JRE into the global symbol table first (that's what setUpJavaRuntime does)
         val soFiles = ArrayList<File>()
         fun walk(dir: File, depth: Int = 0) {
             if (depth > 4) return
@@ -72,7 +72,7 @@ object NativeBootstrap {
             }
         }
         walk(runtime.home)
-        // 顺序上先 jli/jvm，再剩下的（有些 .so 依赖 libjvm 里的符号）
+        // order: jli/jvm first, then the rest (some .so files depend on symbols in libjvm)
         val ordered = soFiles.sortedBy {
             when {
                 it.name == "libjli.so" -> 0
@@ -86,7 +86,7 @@ object NativeBootstrap {
         }
         out += "JRE 原生库 ${ok}/${ordered.size} 载入"
 
-        // 声音 + GL 后端
+        // sound + GL backends
         for (name in listOf("libopenal.so", "libgl4es_114.so", "libglxshim.so")) {
             val f = File(nativeDir, name)
             if (!f.isFile) {

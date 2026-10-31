@@ -1,26 +1,26 @@
 package io.pcla.core.launch
 
 /**
- * 只干一件小事：把 `java -version` 的输出认出来，对上大版本。
+ * One small job: recognize `java -version` output and map it to a major version.
  *
- * 为什么需要它：JRE 解包出问题时，`bin/java` 存在但一执行就死
- * （缺 so、架构不对、被压坏），而日志里只有一行 "Exec format error"，
- * 看不出是哪一层的事。先单独跑 `-version`，能把「JRE 本身」和
- * 「Minecraft 的 classpath」这两类问题分开。
+ * Why it is needed: when JRE extraction goes wrong, `bin/java` exists but dies on execution
+ * (missing .so, wrong arch, corrupted), and the log has only one line, "Exec format error",
+ * which does not say which layer failed. Running `-version` alone separates "the JRE itself"
+ * from "Minecraft's classpath".
  */
 object JavaProbe {
 
-    /** `java -version` 的参数：只要版本，不跑用户代码。 */
+    /** Arguments for `java -version`: version only, no user code. */
     val ARGS: List<String> = listOf("-version")
 
     data class Output(
-        /** 匹配到的版本行原文，例如 `openjdk version "17.0.9" 2023-10-17`。 */
+        /** The matched version line verbatim, e.g. `openjdk version "17.0.9" 2023-10-17`. */
         val line: String? = null,
-        /** 引号里的版本号，例如 17.0.9 / 1.8.0_202。 */
+        /** Version number inside the quotes, e.g. 17.0.9 / 1.8.0_202. */
         val version: String? = null,
-        /** 由 version 推出来的大版本，认不出就是 null。 */
+        /** Major version derived from version; null if unrecognized. */
         val major: Int? = null,
-        /** `java.home` 那两行里给出来的路径（有的版本不打印）。 */
+        /** Path given in the two `java.home` lines (some versions do not print it). */
         val home: String? = null,
     ) {
         val ok: Boolean get() = version != null
@@ -30,7 +30,7 @@ object JavaProbe {
     private val HOME_LINE = Regex("""java\.home\s*=\s*(\S+)""")
 
     /**
-     * 从完整输出里挑版本。stderr 也算：`java -version` 历来把版本写 stderr。
+     * Pick the version from the full output. stderr counts too: `java -version` has always written the version to stderr.
      */
     fun parse(text: String): Output {
         var version: String? = null
@@ -50,16 +50,16 @@ object JavaProbe {
         return Output(line = line, version = version, major = version?.let(::majorOf), home = home)
     }
 
-    /** `1.8.0_202` → 8；`17.0.9` → 17；`21` → 21。 */
+    /** `1.8.0_202` → 8; `17.0.9` → 17; `21` → 21. */
     fun majorOf(version: String): Int? {
         val parts = version.trim().split('.', '_', '-')
         val first = parts.firstOrNull()?.toIntOrNull() ?: return null
         if (first != 1) return first
-        // 老写法 1.x.y：x 才是大版本；`java -version` 已经不会再输出 1.9 了
+        // Old 1.x.y form: x is the major version; `java -version` no longer prints 1.9
         return parts.getOrNull(1)?.toIntOrNull()
     }
 
-    /** 跑起来之后该报的问题，空列表就是没问题。 */
+    /** Problems to report once it runs; an empty list means no problem. */
     fun problems(expectedMajor: Int, out: Output): List<String> {
         val out2 = mutableListOf<String>()
         if (!out.ok) {
@@ -77,7 +77,7 @@ object JavaProbe {
         return out2
     }
 
-    /** 给日志用的一行摘要。 */
+    /** One-line summary for the log. */
     fun render(out: Output, expectedMajor: Int): String = buildString {
         append("java ")
         append(out.version ?: "未识别")

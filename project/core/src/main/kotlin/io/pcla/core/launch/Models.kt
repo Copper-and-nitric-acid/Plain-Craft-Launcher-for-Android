@@ -3,26 +3,26 @@ package io.pcla.core.launch
 enum class Loader { VANILLA, FORGE, FABRIC, NEOFORGE, QUILT }
 
 /**
- * 一次「准备启动」的输入。
+ * Input for one "prepare to launch".
  *
- * renderDistance 是用户/实例当前的渲染距离，不是推荐值——推荐值由
- * [JvmTuner] 算出来放在输出里，两者要分开，否则没法告诉用户「你想开 12，我建议 4」。
+ * renderDistance is the user's/instance's current render distance, not the recommendation — that is computed by
+ * [JvmTuner] and put in the output; the two must stay separate, or we cannot say "you want 12, I suggest 4".
  */
 data class LaunchTarget(
     val mcVersion: String,
     val loader: Loader = Loader.VANILLA,
     val modCount: Int = 0,
     val renderDistance: Int = 4,
-    /** 用户手动指定的堆大小；null 表示让算法决定。 */
+    /** Heap size set by hand; null means let the algorithm decide. */
     val heapOverrideMb: Int? = null,
 )
 
 enum class Severity { INFO, WARN, BLOCK }
 
 /**
- * 一条给用户看的诊断。code 是稳定标识（给测试和埋点用），message 是中文人话。
- * BLOCK 不代表「禁止启动」，而是「必须先弹窗确认」——这和信息不足时静默降级
- * 是两回事，PCLA 的原则是：想改我给的设置，你得知道代价。
+ * One diagnostic for the user. code is a stable id (for tests and telemetry), message is plain-language Chinese.
+ * BLOCK does not mean "launch forbidden" but "must confirm in a dialog first" — different from
+ * silently degrading when information is thin. PCLA's rule: want to override my settings, know the cost.
  */
 data class Diagnostic(val code: String, val severity: Severity, val message: String)
 

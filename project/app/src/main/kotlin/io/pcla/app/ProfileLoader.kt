@@ -4,10 +4,10 @@ import android.content.Context
 import io.pcla.core.device.ProfileTable
 
 /**
- * 档位表来自 assets/device_profiles.json。
+ * The profile table comes from assets/device_profiles.json.
  *
- * 刻意放在 assets 而不是硬编码：这份表会随着社区提交的实测数据更新，
- * 而更新它不应该需要重新编译（后续可以加「热更新 profile」而不动 APK）。
+ * Deliberately in assets rather than hard-coded: the table is updated with community-measured
+ * data, and updating it should not need a recompile (later: hot-update profiles, no APK change).
  */
 object ProfileLoader {
     private var cached: ProfileTable? = null

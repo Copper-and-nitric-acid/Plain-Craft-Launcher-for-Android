@@ -75,7 +75,7 @@ fun PclaApp() {
     }
 }
 
-/** 48px 蓝渐变标题栏，导航是 PCL 那排 27px 高的白字胶囊，不是侧栏也不是底栏。 */
+/** 48px blue-gradient top bar; navigation is PCL's row of 27px-high white pill tabs — not a drawer, not a bottom bar. */
 @Composable
 private fun PclTopBar(tab: Int, onTab: (Int) -> Unit) {
     Column(
@@ -91,7 +91,7 @@ private fun PclTopBar(tab: Int, onTab: (Int) -> Unit) {
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // PCL 的 logo 是白色描边字母，这里用同字重的白字顶替，不做假 Path
+            // PCL's logo is outlined white letters; substitute white text at the same weight instead of faking a Path
             Text("PCL", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             Spacer(Modifier.width(13.dp))
             PclTab("体检", selected = tab == 0) { onTab(0) }

@@ -6,15 +6,15 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * 网址体检的实做部分：拿 HEAD 敲一下，记下状态码和耗时。
+ * URL health check, concretely: knock with a HEAD request, record status code and elapsed ms.
  *
- * 用 HttpURLConnection 而不是 OkHttp，是因为 okhttp 是 download 模块的
- * implementation 依赖，没有暴露到 app 的编译期 classpath。为了四个 HEAD
- * 请求去加一条依赖不值。
+ * HttpURLConnection rather than OkHttp because okhttp is an implementation dependency of the
+ * download module and not exposed on app's compile classpath. Adding a dependency for four HEAD
+ * requests is not worth it.
  */
 object NetProbe {
 
-    /** 真要下载时会碰到的几个地址，挂了哪个都会卡住「① 下载并解压」。 */
+    /** Addresses a real download hits; any one of them being down stalls "① Download and unpack". */
     val targets: List<Pair<String, String>> = listOf(
         "BMCLAPI 版本清单" to "https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json",
         "Mojang 版本清单" to "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",

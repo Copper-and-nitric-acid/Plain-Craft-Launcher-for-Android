@@ -1,22 +1,22 @@
 package io.pcla.core.net
 
-/** 内存体检的三种结论。名字是用户起的，医学上不严谨，但一眼就懂。 */
+/** The three verdicts of a memory checkup. The user coined the names; medically loose but instantly clear. */
 enum class Verdict { 正常, 便秘, 拉稀 }
 
 data class Pulse(val verdict: Verdict, val detail: String)
 
 /**
- * 内存体检：区分「便秘」和「拉稀」。
+ * Memory checkup: tell "constipation" from "diarrhea".
  *
- * - **便秘**：占用一直顶在高位、GC 之后也下不来 —— 这才是泄漏的典型形态；
- * - **拉稀**：占用在极短时间里剧烈上蹿下跳 —— 不是泄漏，是分配/回收太频繁，
- *   表现为 GC 抖动、帧时间锯齿。两种情况的对策完全相反，所以必须分开判断。
+ * - **便秘** (constipation): usage stays pinned high and will not come down after GC — the classic shape of a leak;
+ * - **拉稀** (diarrhea): usage swings wildly within a very short time — not a leak but allocate/reclaim too often,
+ *   showing up as GC jitter and sawtooth frame times. The two need opposite responses, so they must be judged apart.
  *
- * 输入是最近若干个采样点（MB，等间隔），以及堆上限。
+ * Input is the latest few sample points (MB, evenly spaced) and the heap cap.
  */
 object MemoryPulse {
 
-    /** 判定「拉稀」的抖动阈值：堆上限的 3%，且不低于 16MB。 */
+    /** Jitter threshold for "diarrhea": 3% of the heap cap, and never below 16MB. */
     private fun churnThreshold(maxMb: Int): Int = maxOf(16, maxMb * 3 / 100)
 
     fun classify(samplesMb: List<Int>, maxMb: Int): Pulse {

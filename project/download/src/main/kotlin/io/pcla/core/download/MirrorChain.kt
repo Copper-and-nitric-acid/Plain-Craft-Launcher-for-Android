@@ -1,10 +1,10 @@
 package io.pcla.core.download
 
 /**
- * 换源链。
+ * Mirror failover chain.
  *
- * PCL 的 `RangeNotSupportedException` 是同一思路：一个源不行就换下一个，而不是死磕。
- * 排序规则：失败次数少的优先；失败次数相同保持声明顺序（玩家写的顺序就是他的偏好）。
+ * PCL's `RangeNotSupportedException` is the same idea: move to the next source instead of
+ * hammering one. Ordering: fewer failures first; ties keep the declaration order.
  */
 class MirrorChain(urls: List<String>) {
 
@@ -17,7 +17,7 @@ class MirrorChain(urls: List<String>) {
 
     val primary: String get() = order.first()
 
-    /** 按「成功率高、声明靠前」排好的候选列表。 */
+    /** Candidates ordered by "higher success rate, earlier declaration". */
     @Synchronized
     fun candidates(): List<String> = order.sortedWith(
         compareBy<String> { failures[it] ?: 0 }.thenBy { order.indexOf(it) }

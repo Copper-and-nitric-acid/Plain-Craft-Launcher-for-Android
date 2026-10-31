@@ -7,15 +7,15 @@ import java.io.InputStream
 import java.nio.file.Files
 
 /**
- * 内置 JRE 的解包器。
+ * Unpacker for the bundled JRE.
  *
- * assets 里是 FCL 那套运行时，一条 Java 拆成两份：
- *   universal.tar.xz（rt.jar.pack / lib/security / 字体等公共部分，9–33 MB）
- *   bin-arm64.tar.xz（java 可执行文件与 libjli、libjvm，4–7 MB）
- * 必须按 universal → bin 的顺序叠着解，只解 bin 会缺 lib/modules 之外的一大堆东西。
- * 首次启动时解到
- * filesDir/runtime/jre<N>/，之后直接复用。不放进 assets 直接当 java 用，
- * 因为 assets 是压缩流，不能 exec，也没有可执行位。
+ * assets holds FCL's runtime, one Java split into two parts:
+ *   universal.tar.xz (rt.jar.pack / lib/security / fonts and other shared bits, 9–33 MB)
+ *   bin-arm64.tar.xz (the java executable plus libjli and libjvm, 4–7 MB)
+ * They must be stacked in universal → bin order; bin alone lacks a lot beyond lib/modules.
+ *
+ * First launch unpacks into filesDir/runtime/jre<N>/ and reuses it afterwards. It is not run
+ * straight out of assets because assets is a compressed stream: no exec, no executable bit.
  */
 object RuntimePack {
 
@@ -23,7 +23,7 @@ object RuntimePack {
         val javaBin: File get() = File(home, "bin/java")
     }
 
-    /** 解压后写这个标记，避免解到一半被系统杀掉后误判为已完成。 */
+    /** Marker written after unpacking, so a kill mid-unpack isn't mistaken for completion. */
     private const val MARKER = ".pcla-ok"
 
     fun home(context: Context, major: Int): File = File(context.filesDir, "runtime/jre$major")
@@ -33,8 +33,8 @@ object RuntimePack {
             File(File(home(context, major), "bin"), "java").exists()
 
     /**
-     * 确保某个 JRE 已解包。阻塞调用，放后台线程。
-     * @param onProgress 已读字节回调，解压 xz 时进度是「读取进度」不是「磁盘写入进度」。
+     * Make sure a JRE is unpacked. Blocking call, run it off the main thread.
+     * @param onProgress bytes-read callback; for xz this is read progress, not disk-write progress.
      */
     fun ensure(context: Context, major: Int, onProgress: (Long) -> Unit = {}): Installed {
         val finalDir = home(context, major)
@@ -44,8 +44,8 @@ object RuntimePack {
         staging.deleteRecursively()
         staging.mkdirs()
 
-        // universal 是公共部分，bin 是这台机器的可执行文件与 libjvm，顺序不能反：
-        // bin 里的 lib/*.so 会覆盖 universal 里的同名文件（如果有）。
+        // universal is the shared part, bin is this machine's executable and libjvm; order matters:
+        // lib/*.so from bin overwrites any same-named file from universal.
         listOf("universal.tar.xz", "bin-arm64.tar.xz").forEach { name ->
             val asset = "java/jre$major/$name"
             if (!assetExists(context, asset)) {
@@ -59,8 +59,8 @@ object RuntimePack {
             }
         }
 
-        // tar 的 mode 字段各家打包工具写得不一定对；bin/ 下的东西一律补一次可执行位，
-        // 不然会在 exec 时得到 "Permission denied"，看着像 JRE 坏了
+        // tar's mode field isn't reliably written by every packing tool; re-add the exec bit to
+        // everything under bin/, or exec returns "Permission denied" and looks like a broken JRE
         File(staging, "bin").listFiles()?.forEach { it.setExecutable(true, false) }
         File(staging, "lib/jspawnhelper").takeIf { it.isFile }?.setExecutable(true, false)
 
@@ -72,15 +72,15 @@ object RuntimePack {
     }
 
     /**
-     * 解出来的是 Android 版 java（bionic），调用方必须自己设 LD_LIBRARY_PATH。
+     * What comes out is the Android build of java (bionic); the caller must set LD_LIBRARY_PATH.
      *
-     * 目录结构不能靠猜：包里 Java 8 的布局是
-     *   bin/java（7552 字节的小启动器）
-     *   lib/aarch64/jli/libjli.so     ← bin/java 第一件事就是找它
+     * The directory layout must not be guessed: in the pack, Java 8's layout is
+     *   bin/java (a 7552-byte little launcher)
+     *   lib/aarch64/jli/libjli.so     ← the first thing bin/java looks for
      *   lib/aarch64/server/libjvm.so
      *   lib/aarch64/jvm.cfg
-     * 而 Java 17 是 lib/libjli.so + lib/server/libjvm.so。
-     * 两套都列进来，不存在的目录不影响加载。
+     * while Java 17 uses lib/libjli.so + lib/server/libjvm.so. Both sets are listed;
+     * missing directories don't affect loading.
      */
     fun libraryPath(installed: Installed): String {
         val home = installed.home
@@ -113,7 +113,7 @@ object RuntimePack {
         }
     }
 
-    /** 极简 tar 读取：只处理普通文件、目录、符号链接、GNU 长文件名。 */
+    /** Minimal tar reader: only regular files, directories, symlinks and GNU long names. */
     private fun untar(input: InputStream, dest: File) {
         val header = ByteArray(512)
         var pendingLongName: String? = null
@@ -146,7 +146,7 @@ object RuntimePack {
                         Files.deleteIfExists(target.toPath())
                         Files.createSymbolicLink(target.toPath(), File(link).toPath())
                     } catch (_: Throwable) {
-                        // 不支持符号链接就退化成写一个空文件，让 bin/java 的存在性检查仍能给出明确报错
+                        // no symlink support → write an empty file, so the bin/java existence check still errors clearly
                         target.parentFile?.mkdirs()
                         target.writeText("")
                     }
@@ -163,7 +163,7 @@ object RuntimePack {
                             left -= n
                         }
                     }
-                    // tar 里的可执行位在 mode 字段，但只有 bin/ 下的需要
+                    // the exec bit is in tar's mode field, but only what's under bin/ needs it
                     if (name.contains("/bin/") || name.contains("lib/jspawnhelper")) {
                         target.setExecutable(true, false)
                     }

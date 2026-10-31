@@ -5,22 +5,22 @@ import io.pcla.core.device.DeviceSpec
 import io.pcla.core.device.Verdict
 
 /**
- * 动态 JVM 参数与渲染距离决策。这是 PCLA 相对 FCL 的核心差异点：
- * 它不问你「内存填多少」，而是根据一颗 SoC 的实测数据直接给出结论。
+ * Dynamic JVM args and render-distance decisions. This is PCLA's core difference from FCL:
+ * it does not ask "how much memory", it draws the conclusion straight from one SoC's measurements.
  *
- * 每条系数的来历（都不是拍脑袋，改动请附实测记录）：
+ * Origin of each coefficient (none guessed; attach measurements to any change):
  *
- * - 1.18 起内存系数 1.5：实测 2048MB 堆下，1.18 游戏内活数据已达 1.2GB，
- *   young GC 只能回收 5%（1004M→948M），停顿从 135ms 爬到 298ms。
- *   要让它有回落空间，2048 → 3072。
- * - 1.20+ 系数 1.25：同一台机器的 TNT 谷底从 46 恢复到 78，说明结构性问题缓解，
- *   但没回到 1.16.5 的 87，所以仍比 baseline 高一点。
- * - ≤1.16.5 系数 1.0：2048 够用，1.16.5 的 TNT 谷底 87 就是在这个配置下测的。
- * - 渲染距离每超甜点 +1，预算 +128MB：区块网格是最大的活数据来源，
- *   RD 是实测里最粗的那根杠杆（RD2 200fps → RD17 60fps）。
- * - Xms = Xmx：堆动态扩张会先触发一次扩容再 GC，是秒级卡顿的常见来源。
- * - ParallelGCThreads 显式压低：MT6833 是 2×A76 + 6×A55，JVM 会把并行 GC 分摊到
- *   小核上，停顿被最慢的 worker 拖长；并发标记实测被饿到 8189ms。
+ * - Memory factor 1.5 from 1.18: measured with a 2048MB heap, 1.18 already holds 1.2GB live in-game,
+ *   young GC reclaims only 5% (1004M→948M) and pauses climb from 135ms to 298ms.
+ *   To give it room to fall back, 2048 → 3072.
+ * - 1.20+ factor 1.25: on the same device the TNT trough recovers from 46 to 78, so the structural problem eased,
+ *   but does not return to 1.16.5's 87, so it stays slightly above baseline.
+ * - ≤1.16.5 factor 1.0: 2048 is enough; 1.16.5's TNT trough of 87 was measured on exactly this config.
+ * - Each render distance above the sweet spot adds +128MB budget: chunk meshes are the largest live-data source,
+ *   and RD is the coarsest lever measured (RD2 200fps → RD17 60fps).
+ * - Xms = Xmx: a heap that has to grow triggers one expansion before GC, a common source of second-long stalls.
+ * - ParallelGCThreads pinned low on purpose: MT6833 is 2×A76 + 6×A55, and the JVM spreads parallel GC onto
+ *   the little cores, where the slowest worker drags the pause out; concurrent marking was measured starved to 8189ms.
  */
 object JvmTuner {
 
@@ -29,17 +29,17 @@ object JvmTuner {
     private const val HEAP_FLOOR_MB = 1024
     private const val HEAP_CEILING_MB = 4096
 
-    /** 允许在实测甜点之上再抬多少。再多就是拿进程被杀的风险换不存在的帧率。 */
+    /** How far above the measured sweet spot we may go. More than that trades kill risk for frame rate that does not exist. */
     private const val HEAP_HEADROOM_MB = 1024
 
-    /** 堆占物理内存的比例上限。超过这条线，Android 会在你玩游戏时把进程杀掉。 */
+    /** Cap on heap as a share of physical RAM. Past this line Android kills the process while you are playing. */
     private const val RAM_FRACTION = 0.45
 
     fun tune(spec: DeviceSpec, profile: DeviceProfile, target: LaunchTarget): JvmConfig {
         val diagnostics = ArrayList<Diagnostic>()
         val rule = profile.rd
 
-        // ---- 1. 版本判定 ----
+        // ---- 1. Version verdict ----
         val measured = profile.measuredOrNull(target.mcVersion)
         when (profile.verdictOf(target.mcVersion)) {
             Verdict.AVOID -> diagnostics += Diagnostic(
@@ -53,7 +53,7 @@ object JvmTuner {
             Verdict.OK -> Unit
         }
 
-        // ---- 2. 渲染距离 ----
+        // ---- 2. Render distance ----
         val rd = target.renderDistance
         if (rd >= rule.ban) {
             diagnostics += Diagnostic(
@@ -67,16 +67,16 @@ object JvmTuner {
             )
         }
 
-        // ---- 3. 堆大小 ----
+        // ---- 3. Heap size ----
         val major = majorOf(target.mcVersion)
         val sweetHeap = profile.heapSweetMb
         val ceiling = safeCeilingMb(spec, profile)
 
-        // 默认堆 = 这台机型实测跑过的基线，只按 mod 数量微调。
+        // Default heap = the baseline this device has actually run, nudged only by mod count.
         //
-        // 曾经按「版本系数 × 甜点堆 + 每级渲染距离 128MB」推导，8GB 机器上会算出 3686MB；
-        // 但实测 1.18 在 RD17 下用 2048MB 也没 OOM——渲染距离吃的是显存和 CPU，不是堆。
-        // 把没有证据的加法堆上去，只会让 Android 在后台把进程杀掉。
+        // We once derived it as "version factor × sweet heap + 128MB per render-distance step", which gave 3686MB on an 8GB device;
+        // but measured 1.18 at RD17 did not OOM with 2048MB — render distance eats VRAM and CPU, not heap.
+        // Adding heap without evidence only gets the process killed in the background by Android.
         val requested = target.heapOverrideMb
             ?: (sweetHeap + (target.modCount * MB_PER_MOD).coerceAtMost(MOD_HEAP_CAP_MB))
         val heap = requested.coerceIn(HEAP_FLOOR_MB, ceiling)
@@ -97,7 +97,7 @@ object JvmTuner {
             )
         }
 
-        // ---- 4. GC 线程 ----
+        // ---- 4. GC threads ----
         val parallel = profile.gcParallelThreads
             ?: if (spec.ramMb <= 6144L) 2 else 4
 
@@ -108,13 +108,13 @@ object JvmTuner {
             add("-XX:MaxGCPauseMillis=50")
             add("-XX:ParallelGCThreads=$parallel")
             add("-XX:ConcGCThreads=1")
-            // perfdata 共享内存写在海量小块 IO 的 /data 上，会放大 GC 尾延迟
+            // perfdata shared memory sits on /data under heavy small-block IO, which amplifies GC tail latency
             add("-XX:+PerfDisableSharedMem")
             add("-Djava.awt.headless=true")
             add("-Dfile.encoding=UTF-8")
         }
 
-        // ---- 5. 推荐值 ----
+        // ---- 5. Recommended values ----
         val recommendedRd = if (profile.verdictOf(target.mcVersion) == Verdict.AVOID) rule.min else rule.sweet
         if (rd != recommendedRd && rd < rule.warnAt) {
             diagnostics += Diagnostic(
@@ -137,8 +137,8 @@ object JvmTuner {
     }
 
     /**
-     * 本机堆的安全上限：物理内存的 45%，且不超过 4096。
-     * 超过这条线 Android 不会让游戏「变慢」，而是直接把进程杀掉。
+     * Safe heap ceiling on this device: 45% of physical RAM, and never above 4096.
+     * Past this line Android does not make the game "slower" — it kills the process outright.
      */
     fun safeCeilingMb(spec: DeviceSpec, profile: DeviceProfile? = null): Int {
         val byRam = (spec.ramMb * RAM_FRACTION).toInt()
@@ -146,7 +146,7 @@ object JvmTuner {
         return minOf(byRam, byProfile, HEAP_CEILING_MB).coerceAtLeast(HEAP_FLOOR_MB)
     }
 
-    /** 主版本号："1.18.2" → 18；"1.7.10" → 7；解析失败返回 0。 */
+    /** Major version: "1.18.2" → 18; "1.7.10" → 7; returns 0 if parsing fails. */
     fun majorOf(version: String): Int {
         val parts = version.trim().split('.')
         if (parts.size < 2) return 0

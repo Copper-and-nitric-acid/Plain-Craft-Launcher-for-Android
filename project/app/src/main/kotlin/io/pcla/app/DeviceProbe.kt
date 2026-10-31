@@ -12,10 +12,10 @@ import android.os.Build
 import io.pcla.core.device.DeviceSpec
 
 /**
- * Android 侧的唯一职责：把设备事实读出来，交给 core 去决策。
+ * The only job on the Android side: read device facts out and hand them to core to decide.
  *
- * 这里不做任何判断逻辑——判断在 core/JvmTuner 和 VersionPolicy 里，
- * 因为那些逻辑需要能在没有手机的机器上跑测试。
+ * No decision logic here — that lives in core/JvmTuner and VersionPolicy, which need to be
+ * testable on a machine without a phone.
  */
 object DeviceProbe {
 
@@ -32,8 +32,8 @@ object DeviceProbe {
     }
 
     /**
-     * 多源拼接：SoC 型号并不是所有机器都填（API 31 以下恒为空），
-     * 而且厂商常在 HARDWARE 里带变体后缀（MT6833V/ZA），所以匹配时用 contains 而不是 equals。
+     * Multi-source concat: not every device fills in the SoC model (always empty below API 31),
+     * and vendors often append variants in HARDWARE (MT6833V/ZA), so match with contains, not equals.
      */
     fun socKey(): String {
         val model = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Build.SOC_MODEL else ""
@@ -51,10 +51,10 @@ object DeviceProbe {
     }
 
     /**
-     * 离屏 pbuffer + GLES2 上下文，只为了读 GL_RENDERER / GL_VERSION。
-     * 不创建 SurfaceView、不影响 UI；任何失败都静默降级为空串（宁可少信息，不可崩）。
+     * Offscreen pbuffer + GLES2 context, only to read GL_RENDERER / GL_VERSION.
+     * No SurfaceView, no UI impact; any failure silently degrades to "" (less info beats a crash).
      *
-     * 必须在后台线程调用：建上下文在某些驱动上会阻塞几十毫秒。
+     * Must be called on a background thread: context creation blocks for tens of ms on some drivers.
      */
     private fun queryGl(): Pair<String, String> {
         var display: EGLDisplay = EGL14.EGL_NO_DISPLAY

@@ -20,8 +20,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * JVM 层第一块：把内置 tar.xz 解成能 exec 的 java。
- * 这页不启动游戏，只证明「随包的运行时真能在这台手机上解出来并执行」。
+ * First piece of the JVM layer: unpack the bundled tar.xz into an executable java.
+ * This page does not launch the game; it only proves the packaged runtime can be unpacked and executed on this phone.
  */
 @Composable
 internal fun RuntimeCard(neededMajor: Int) {

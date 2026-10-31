@@ -1,11 +1,11 @@
 package io.pcla.core.launch
 
 /**
- * 启动前自检。
+ * Pre-launch self-check.
  *
- * 真机上"点了没反应"最费时间，而大部分原因在起 JVM 之前就能查出来：
- * classpath 里有没有 GLFW、natives 里有没有 libpojavexec、java.library.path 是不是空的。
- * 这里全部做成纯字符串/路径判断，容器里能用假数据跑满。
+ * "Tapped and nothing happened" on a real device costs the most time, and most causes are visible before the JVM starts:
+ * is GLFW on the classpath, is libpojavexec among the natives, is java.library.path empty.
+ * Everything here is plain string/path checks, so it runs fully in a container with fake data.
  */
 data class Check(val name: String, val ok: Boolean, val detail: String)
 

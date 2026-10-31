@@ -1,12 +1,12 @@
-// PCLA 的 Surface 桥：把 Java 侧拿到的 android.view.Surface 交给 libpojavexec.so。
+// PCLA's Surface bridge: hands the android.view.Surface obtained on the Java side to libpojavexec.so.
 //
-// 为什么要这层 C：
-//   libpojavexec.so 导出的 JNI 入口名是
+// Why this C layer is needed:
+//   libpojavexec.so exports the JNI entry
 //     Java_org_lwjgl_glfw_CallbackBridge_setupBridgeWindow(JNIEnv*, jclass, jobject)
-//   JNI 按「谁声明 native 方法」定符号名，我们的包名是 io.pcla.app，
-//   所以 Java 里无论怎么写都命中不了这个符号。唯一不依赖上游源码的办法是
-//   自己 dlopen 再 dlsym 拿到函数指针，直接用同一个 JNIEnv 调过去。
-//   函数体只做 ANativeWindow_fromSurface(env, surface) 之后保存，不在乎 jclass。
+//   JNI names symbols after "which class declares the native method", and our package is io.pcla.app,
+//   so no Java signature can hit that symbol. The only way without patching upstream is to
+//   dlopen it ourselves, dlsym the function pointer, and call it with the same JNIEnv.
+//   The body only does ANativeWindow_fromSurface(env, surface) and stores it; jclass does not matter.
 #include <jni.h>
 #include <dlfcn.h>
 #include <android/log.h>
@@ -28,7 +28,7 @@ static void *open_bridge(void) {
     return h;
 }
 
-// 返回 0 = 成功；-1 = dlopen 失败；-2 = 符号没找到。
+// Returns 0 = success; -1 = dlopen failed; -2 = symbol not found.
 JNIEXPORT jint JNICALL
 Java_io_pcla_app_SurfaceBridge_install(JNIEnv *env, jclass clazz, jobject surface) {
     (void) clazz;
@@ -46,7 +46,7 @@ Java_io_pcla_app_SurfaceBridge_install(JNIEnv *env, jclass clazz, jobject surfac
     return -2;
 }
 
-// 给界面看的自检：哪些入口在这个 so 里真的存在。
+// Self-check for the UI: which entries really exist in this .so.
 JNIEXPORT jstring JNICALL
 Java_io_pcla_app_SurfaceBridge_probe(JNIEnv *env, jclass clazz) {
     (void) clazz;

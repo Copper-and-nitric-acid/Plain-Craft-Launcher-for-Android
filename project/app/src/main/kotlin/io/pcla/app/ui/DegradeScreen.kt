@@ -33,8 +33,8 @@ import io.pcla.core.launch.Lever
 import io.pcla.core.launch.RunObservation
 
 /**
- * 手填一次实测，换一条带理由的降级路线。
- * 界面上不替用户编数据：没填的字段就传 null，让内核自己判断证据不足。
+ * Enter one real measurement by hand and get back a degrade route with reasons.
+ * The UI never invents data for the user: unset fields pass null so the core can conclude the evidence is insufficient.
  */
 @Composable
 internal fun DegradeScreen(spec: DeviceSpec, profile: DeviceProfile) {

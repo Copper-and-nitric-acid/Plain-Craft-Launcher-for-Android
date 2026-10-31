@@ -1,8 +1,8 @@
 package io.pcla.core.download
 
 /**
- * 下载层的纯逻辑自检：阈值划分、线程数夹取、分片覆盖、IP 拦截。
- * 不碰网络——这部分能在任何没有网的环境里跑。
+ * Pure-logic self-test of the download layer: tier thresholds, thread clamping, segment
+ * coverage, IP blocking. Touches no network, so it runs in any offline environment.
  */
 object DownloadSelfTest {
 

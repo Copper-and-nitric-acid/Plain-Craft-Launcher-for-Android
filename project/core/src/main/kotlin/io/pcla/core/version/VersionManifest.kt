@@ -2,7 +2,7 @@ package io.pcla.core.version
 
 import io.pcla.core.json.MiniJson
 
-/** 官方 version_manifest_v2.json 里的一行。 */
+/** One row of the official version_manifest_v2.json. */
 data class VersionEntry(val id: String, val type: String, val url: String)
 
 object VersionManifest {

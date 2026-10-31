@@ -3,12 +3,12 @@ package io.pcla.app
 import android.content.Context
 import java.io.File
 
-/** APK 里随包安装的原生库，用来在启动前确认「底座」确实在。 */
+/** Native libs shipped in the APK, used to confirm the "foundation" is really there pre-launch. */
 data class NativeLibInfo(val name: String, val sizeBytes: Long)
 
 object NativeLibs {
 
-    /** 安装后 lib*.so 的真实路径；useLegacyPackaging=true 才会有这些文件。 */
+    /** Real path of lib*.so after install; the files only exist with useLegacyPackaging=true. */
     fun dir(context: Context): File = File(context.applicationInfo.nativeLibraryDir)
 
     fun list(context: Context): List<NativeLibInfo> =
@@ -20,9 +20,9 @@ object NativeLibs {
     fun totalBytes(context: Context): Long = list(context).sumOf { it.sizeBytes }
 
     /**
-     * 试加载一个库，只用于排障。
-     * 注意：zink / vulkan / OSMesa 这类在没建好 GL 上下文时加载可能直接 abort，
-     * 所以默认只试 gl4es 这种纯软件转换层，并且只在用户点按钮时执行。
+     * Try loading one library, for troubleshooting only.
+     * Note: zink / vulkan / OSMesa can abort outright when loaded without a ready GL context,
+     * so by default try only a pure software layer like gl4es, and only on a user button tap.
      */
     fun probeLoad(context: Context, name: String): String? {
         val f = File(dir(context), name)

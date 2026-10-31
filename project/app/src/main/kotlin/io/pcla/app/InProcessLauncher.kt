@@ -8,19 +8,19 @@ import io.pcla.core.launch.LaunchCommand
 import java.io.File
 
 /**
- * 实验：不 exec 外部 java，而是在 App 进程里起 JVM（Pojav 的做法）。
+ * Experiment: don't exec an external java, start the JVM inside the app process (Pojav's way).
  *
- * 为什么赌它：Surface 属于 App 进程，`bin/java` 在另一个进程拿不到。
- * 同进程起来，`CallbackBridge.setupBridgeWindow(Surface)` 才有意义。
+ * Why bet on it: the Surface belongs to the app process and `bin/java` in another process can't
+ * get it; started in-process, `CallbackBridge.setupBridgeWindow(Surface)` finally means something.
  *
- * 风险写在明处：JVM 崩了是整个 App 崩（没有进程隔离兜底），
- * 所以只放在一个单独的「实验」按钮后面，默认路径仍是 exec。
+ * The risk is stated openly: if the JVM dies the whole app dies (no process isolation to fall
+ * back on), so it sits behind a separate "experiment" button and exec remains the default path.
  */
 object InProcessLauncher {
 
     private const val TAG = "PCLA-JVM"
 
-    /** Java 8 的 libjli 在 lib/aarch64/jli 下，17 在 lib 下，搜索比写死路径可靠。 */
+    /** Java 8's libjli is under lib/aarch64/jli and 17's under lib; searching beats hard-coded paths. */
     private fun findLib(home: File, name: String): File? {
         val stack = ArrayDeque(listOf(File(home, "lib")))
         var seen = 0
@@ -36,7 +36,7 @@ object InProcessLauncher {
 
     data class Attempt(val argv: List<String>)
 
-    /** 只装库、不启 VM，用来单独验证符号能否解析。 */
+    /** Load libs without starting the VM, to verify symbol resolution on its own. */
     fun loadNative(context: Context): Result<String> = runCatching {
         val libs = NativeBootstrap.loadLibs()
         val m = VMLauncher::class.java.getDeclaredMethod("launchJVM", Array<String>::class.java)
@@ -44,8 +44,8 @@ object InProcessLauncher {
     }
 
     /**
-     * 用与 exec 路径完全相同的参数起同进程 JVM。
-     * 返回 null 表示 native 直接返回了（某些实现是异步的）。
+     * Start an in-process JVM with exactly the same arguments as the exec path.
+     * null means native returned directly (some implementations are async).
      */
     fun launch(
         context: Context,
@@ -55,19 +55,19 @@ object InProcessLauncher {
     ): Int? {
         NativeBootstrap.loadLibs().forEach { onLine("原生库 $it") }
         val runtime = RuntimePack.ensure(context, installed.javaMajor)
-        // 同进程没有 bin/java 可用，JVM 由 native 自己 dlopen；这里只给参数与路径
+        // in-process there is no bin/java; native dlopens the JVM itself, so we only pass args and paths
         System.setProperty("java.home", runtime.home.absolutePath)
         System.setProperty("java.library.path", GameInstaller.nativesPath(context, installed.root))
-        // 必须和 java.library.path 同序：随包 arm64 在前，清单解出的（x86）在后
+        // must be in the same order as java.library.path: bundled arm64 first, manifest-extracted (x86) after
         System.setProperty("org.lwjgl.librarypath", GameInstaller.nativesPath(context, installed.root))
 
-        // FCL 在 launchMinecraft 之前做的 native 准备：环境变量 + 把 JRE 的 .so
-        // 全部预 dlopen 进全局符号表。不做这步，JLI 里按 soname 找 libjli.so 会失败。
+        // FCL's native prep before launchMinecraft: env vars + pre-dlopen every JRE .so into the
+        // global symbol table. Skip it and JLI's lookup of libjli.so by soname fails.
         NativeBootstrap.prepare(context, runtime, installed.root).forEach { onLine(it) }
 
-        // native 里的 launchJVM 就是 JLI_Launch(argc, argv)：argv[0] 必须是 java 的绝对路径
-        // （JLI 靠它的目录推 java.home），后面才是 JVM 参数 + 主类 + 游戏参数。
-        // 所以这里**不能**去掉 argv[0]，和 exec 路径用同一份命令。
+        // native launchJVM is JLI_Launch(argc, argv): argv[0] must be java's absolute path
+        // (JLI derives java.home from its directory), then come JVM args + main class + game args.
+        // So argv[0] must **not** be dropped here; this is the same command as the exec path.
         val argv = LaunchCommand.build(
             javaBin = runtime.javaBin.absolutePath,
             plan = installed.plan,
@@ -75,9 +75,9 @@ object InProcessLauncher {
             nativesDir = GameInstaller.nativesPath(context, installed.root),
             extraJvm = listOf("-Djava.home=" + runtime.home.absolutePath) + AwtRuntime.jvmProps(1280, 720),
         )
-        // Pojav 的 jre_launcher.c 用 dlopen("libjli.so") 取 JLI_Launch；
-        // App 进程的 LD_LIBRARY_PATH 改不了，只能先把关键 so 以绝对路径载进来，
-        // 之后 dlopen 按 soname 就能命中已加载的那份。
+        // Pojav's jre_launcher.c gets JLI_Launch via dlopen("libjli.so"); the app process's
+        // LD_LIBRARY_PATH can't be changed, so load the key .so files by absolute path first and
+        // a later dlopen by soname hits the already-loaded copy.
         listOf("libjli.so", "libjvm.so", "libjava.so", "libverify.so", "libzip.so", "libjimage.so")
             .mapNotNull { name -> findLib(runtime.home, name) }
             .forEach { so ->
@@ -87,8 +87,8 @@ object InProcessLauncher {
         onLine("同进程启动：${argv.size} 个参数，主类 " + installed.plan.mainClass)
         onLine(argv.take(6).joinToString(" "))
         val started = System.currentTimeMillis()
-        // native 崩溃不会留堆栈，先落一份「准备调 JVM」的记录：
-        // 进程若死在这行之后，至少能确认是 native 里崩的，而不是根本没走到。
+        // a native crash leaves no stack trace, so drop an "about to call the JVM" note first:
+        // if the process dies after this line, at least we know it died in native, not before.
         runCatching {
             val dir = context.getExternalFilesDir("crash") ?: context.filesDir
             dir.mkdirs()

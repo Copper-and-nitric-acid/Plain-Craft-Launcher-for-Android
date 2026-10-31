@@ -4,10 +4,10 @@ import java.io.File
 import java.security.MessageDigest
 
 /**
- * SHA-1 校验。
+ * SHA-1 verification.
  *
- * SHA-1 在这里不是防篡改（它已被攻破），而是防「下载了一半」和「CDN 给了你一个 HTML 错误页」。
- * 真防篡改要靠 HTTPS + 官方签名，别指望这一段代码。
+ * SHA-1 here is not anti-tampering (it is broken), it catches "downloaded only half" and
+ * "the CDN served an HTML error page". Real tamper protection needs HTTPS + official signatures.
  */
 object Checksum {
 
@@ -26,7 +26,7 @@ object Checksum {
 
     fun normalize(hex: String): String = hex.trim().lowercase().removePrefix("sha1:")
 
-    /** expected 为 null 表示「没有官方哈希」，这时只做大小校验，不能假称已验证。 */
+    /** expected null means "no official hash"; then only size is checked, we must not claim verified. */
     fun verify(file: File, expectedSha1: String?, expectedSize: Long? = null): HashResult {
         if (expectedSize != null && file.length() != expectedSize) {
             return HashResult.SizeMismatch(expectedSize, file.length())

@@ -3,14 +3,14 @@ package io.pcla.app.ui.theme
 import androidx.compose.ui.graphics.Color
 
 /**
- * 取自 PCL 官方 `Plain Craft Launcher 2/Application.xaml` 第 22-65 行，
- * 也就是 `ColorObject1`~`ColorObject8` 与 `ColorObjectGray1`~`Gray8` 的原值。
- * 不做「看起来差不多」的自创色：摆在一起时自创蓝会发灰。
+ * Taken from PCL's `Plain Craft Launcher 2/Application.xaml` lines 22-65,
+ * i.e. the original values of `ColorObject1`-`ColorObject8` and `ColorObjectGray1`-`Gray8`.
+ * No "close enough" invented colors: next to the originals, an invented blue turns grey.
  */
 object Pcl {
-    val Blue1 = Color(0xFF343D4A) // PCL 管它叫 Color1，是正文色（深板岩），不是蓝
+    val Blue1 = Color(0xFF343D4A) // PCL calls this Color1: the body text color (dark slate), not a blue
     val Blue2 = Color(0xFF0B5BCB)
-    val Blue3 = Color(0xFF1370F3) // 主色
+    val Blue3 = Color(0xFF1370F3) // primary color
     val Blue4 = Color(0xFF4890F5)
     val Blue5 = Color(0xFF96C0F9)
     val Blue6 = Color(0xFFD5E6FD)
@@ -31,7 +31,7 @@ object Pcl {
     val RedBack = Color(0x80FBDDDD)
 }
 
-/** 夜间方案是按 PCL 色相压暗派生的（PCL 的夜间值在代码里，不在 XAML）。 */
+/** The dark scheme is derived by darkening PCL's hues (PCL's dark values live in code, not in the XAML). */
 object PclDark {
     val Blue2 = Color(0xFF1370F3)
     val Blue3 = Color(0xFF4890F5)

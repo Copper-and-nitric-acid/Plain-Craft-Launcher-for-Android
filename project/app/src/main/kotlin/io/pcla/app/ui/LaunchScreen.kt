@@ -41,8 +41,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * 启动页：装（下载+解压）→ 启动（exec java）→ 日志。
- * 只做一件事：把「点了启动到底发生了什么」原样打出来。
+ * Launch page: install (download + unpack) → launch (exec java) → log.
+ * It does one thing: print exactly what happens after you tap Launch.
  */
 @Composable
 internal fun LaunchScreen(heapMb: Int) {
@@ -53,11 +53,11 @@ internal fun LaunchScreen(heapMb: Int) {
     var log by remember { mutableStateOf("") }
     var installed by remember { mutableStateOf<GameInstaller.Installed?>(null) }
     var busy by remember { mutableStateOf(false) }
-    // 游戏的窗口。同进程启动时由这块 SurfaceView 出让 Surface，
-    // 经 libpcla_surface.so 转交给 libpojavexec.so 里保存的 ANativeWindow。
+    // The game window. On in-process launch this SurfaceView hands over its Surface,
+    // which libpcla_surface.so passes on to the ANativeWindow kept in libpojavexec.so.
     var surface by remember { mutableStateOf<Surface?>(null) }
     var surfaceState by remember { mutableStateOf("还没创建") }
-    // 内存体检：每秒取一个点，攒够窗口后判断是「便秘」还是「拉稀」。
+    // Memory check-up: one sample per second; once the window fills, tell "constipated" from "the runs".
     var memLine by remember { mutableStateOf("采样中…") }
     var urlLine by remember { mutableStateOf("还没测过") }
 
@@ -127,7 +127,7 @@ internal fun LaunchScreen(heapMb: Int) {
                     }
                 },
             )
-            // 不需要 366MB 的游戏文件，也能先确认「包里的 JRE 到底能不能跑」
+            // Confirms the bundled JRE can actually run before the 366MB of game files are needed
             PclButton(
                 text = "JRE 自检",
                 enabled = !busy,
@@ -166,7 +166,7 @@ internal fun LaunchScreen(heapMb: Int) {
                     }
                 },
             )
-            // 实验路径：同进程起 JVM。崩会带走整个 App，所以单独一个按钮，不混进正常流程
+            // Experimental path: start the JVM in-process. A crash takes the whole app down with it, so it gets its own button off the normal flow
             PclButton(
                 text = "实验·同进程启动",
                 enabled = !busy,
@@ -225,8 +225,8 @@ internal fun LaunchScreen(heapMb: Int) {
                     }
                 },
             )
-            // 正路：全屏 Surface + 同进程 JVM 放在独立的 GameActivity 里。
-            // 启动页那张 660x192 的预览只是给「检查」看的，尺寸和生命周期都不适合真跑。
+            // The proper path: full-screen Surface + in-process JVM live in a separate GameActivity.
+            // The 660x192 preview on this page is only for "Check"; its size and lifecycle do not fit real runs.
             PclButton(
                 text = "进入游戏窗口（全屏 Surface）",
                 enabled = !busy && installed != null,
@@ -251,7 +251,7 @@ internal fun LaunchScreen(heapMb: Int) {
                 text = "网址体检",
                 enabled = !busy,
                 onClick = {
-                    // 网址可用性：四个会真的被下载流程用到的地址，各敲一下 HEAD。
+                    // URL health: the four addresses the download flow really uses, each probed with HEAD.
                     urlLine = "测速中…"
                     scope.launch {
                         append("--- 网址体检 ---")

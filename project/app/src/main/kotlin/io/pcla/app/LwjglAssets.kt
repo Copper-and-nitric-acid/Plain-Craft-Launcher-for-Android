@@ -5,9 +5,9 @@ import io.pcla.core.launch.AndroidRuntime
 import java.io.File
 
 /**
- * 把 assets/lwjgl/3.3.3 里的 jar 与 .so 拷到游戏目录，替代清单里那套 x86_64 的 LWJGL。
- *
- * 只在 arm64 上做；拷贝带缓存（按大小判断），重复进游戏不会反复写 4.7MB。
+ * Copy the jars and .so files from assets/lwjgl/3.3.3 into the game dir, replacing the x86_64
+ * LWJGL set from the manifest. arm64 only; copying is cached by size, so re-entering the game
+ * doesn't rewrite 4.7MB each time.
  */
 object LwjglAssets {
 

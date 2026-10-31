@@ -28,7 +28,7 @@ import io.pcla.app.ui.theme.Pcl
 import io.pcla.app.ui.theme.PclDark
 import io.pcla.core.device.Verdict
 
-/** 圆形胶囊标签，尺寸照 PCL 的 MyRadioButton：高 27、圆角 13.5。 */
+/** Round pill tag; sized after PCL's MyRadioButton: 27 high, 13.5 corner radius. */
 @Composable
 fun PclTab(text: String, selected: Boolean, onClick: () -> Unit) {
     val alpha = if (selected) 0.26f else 0.10f
@@ -51,8 +51,8 @@ fun PclTab(text: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 /**
- * PCL 的 MyCard：白底、圆角 6、标题在左上角、无边距内缩。
- * 标题不画分割线——PCL 原版就是靠留白分层，加线反而更"Material"。
+ * PCL's MyCard: white background, 6dp corners, title at top-left, no inset padding.
+ * No divider under the title — stock PCL separates layers with whitespace; a rule would read as more "Material".
  */
 @Composable
 fun PclCard(
@@ -86,8 +86,8 @@ fun PclCard(
 }
 
 /**
- * PCL 的 MyButton：圆角 3、1px 描边、文字颜色跟描边一致。
- * highlight 是启动键那种蓝渐变（渐变起点用 ColorObject4）。
+ * PCL's MyButton: 3dp corners, 1px stroke, text color matching the stroke.
+ * highlight is the blue gradient of the launch button (gradient starts at ColorObject4).
  */
 @Composable
 fun PclButton(
@@ -127,7 +127,7 @@ fun PclButton(
 
 enum class TagTone { BLUE, GRAY, RED }
 
-/** 小标签：PCL 的 TypeOne 胶囊（高 27、圆角 13）缩小一号。 */
+/** Small tag: PCL's TypeOne pill (27 high, radius 13) one size down. */
 @Composable
 fun PclTag(text: String, tone: TagTone, modifier: Modifier = Modifier) {
     val dark = isSystemInDarkTheme()
@@ -155,7 +155,7 @@ fun verdictTag(verdict: Verdict): Pair<String, TagTone> = when (verdict) {
     Verdict.UNKNOWN -> "无数据" to TagTone.GRAY
 }
 
-/** 键值对。PCL 的设置项就是「灰色小标题 + 黑色值」的上下两行，不是左右两列。 */
+/** Key/value pair. PCL settings rows stack a grey label above a black value — two rows, not two columns. */
 @Composable
 fun PclField(label: String, value: String, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
@@ -165,7 +165,7 @@ fun PclField(label: String, value: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** 日志/参数这类等宽内容块。 */
+/** Monospace block for logs/arguments. */
 @Composable
 fun PclCode(text: String, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
@@ -180,7 +180,7 @@ fun PclCode(text: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** 列表行的基线高度，照 MyListItem 的 42。 */
+/** Baseline row height, matching MyListItem's 42. */
 @Composable
 fun PclRow(
     modifier: Modifier = Modifier,

@@ -6,21 +6,21 @@ import io.pcla.core.launch.Library
 import io.pcla.core.launch.Platform
 import io.pcla.core.launch.VersionMeta
 
-/** 一个待下载文件：远端地址 + 落盘相对路径 + 校验值。 */
+/** One file to download: remote URL + relative on-disk path + checksum. */
 data class RemoteFile(
     val relativePath: String,
     val url: String,
     val sha1: String?,
     val size: Long?,
-    /** 归类，只用于 UI 分组与给出人话进度 */
+    /** Category, used only for UI grouping and human-readable progress */
     val kind: Kind,
 ) {
     enum class Kind { LIBRARY, ASSET, CLIENT }
 }
 
 /**
- * 把版本 json + assets 索引翻译成「要下哪些文件、放哪、怎么校验」。
- * 纯函数：不碰网络也不碰磁盘，方便在容器里用假数据把边界跑一遍。
+ * Turns a version json + assets index into "which files to download, where they go, how they verify".
+ * Pure function: no network and no disk, so edge cases can be exercised with fake data in a container.
  */
 data class GamePlan(
     val libraries: List<RemoteFile>,
@@ -77,8 +77,8 @@ data class GamePlan(
 }
 
 /**
- * 下载完成后按 sha1 逐个复核。返回不合格的文件列表（空表示全过）。
- * 只读磁盘，不修不删——删不删由上层拿主意。
+ * Re-checks every file by sha1 after download. Returns the failing files (empty = all good).
+ * Reads disk only, never fixes or deletes — whether to delete is the caller's call.
  */
 object GameVerifier {
     fun verify(files: List<RemoteFile>, root: java.io.File, hasher: (java.io.File) -> String): List<RemoteFile> =

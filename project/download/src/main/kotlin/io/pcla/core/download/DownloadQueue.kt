@@ -9,14 +9,17 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * 多文件下载队列。
+ * Multi-file download queue.
  *
- * 为什么并发对象是「多文件」而不是「单文件多线程」：本机实测（天玑 700 / 8GB）
- * 单连接 1.30 MB/s、4 分片 1.24 MB/s、8 分片 1.06 MB/s 且开始吃 429 —— 链路才是瓶颈，
- * 把一条链路切成 8 份只会互相抢带宽。真正能提吞吐的是同时下多个文件，
- * 因为下载 1.20.1 一个实例要拿几百个小文件（library、asset），HTTP 握手和排队才是大头。
+ * Why concurrency is "many files" rather than "one file, many threads": measured here
+ * (Dimensity 700 / 8GB): 1 connection 1.30 MB/s, 4 segments 1.24 MB/s, 8 segments 1.06 MB/s
+ * and it starts eating 429s — the link is the bottleneck, and cutting one link into 8 just makes
+ * the pieces fight over bandwidth. What really raises throughput is downloading several files at
+ * once, because one 1.20.1 instance pulls hundreds of small files (libraries, assets), so HTTP
+ * handshakes and queuing dominate.
  *
- * 并发上限不是常数：撞到 429/503 就按 [AdaptiveLimiter] 减半，连续成功再一格一格放开。
+ * The cap is not constant: on 429/503 halve it per [AdaptiveLimiter], then reopen it one step at
+ * a time after consecutive successes.
  */
 class DownloadQueue(
     config: DownloadConfig = DownloadConfig(),
@@ -26,7 +29,7 @@ class DownloadQueue(
     private val cfg = config.sanitized()
     private val limiter = AdaptiveLimiter(maxPermits = maxConcurrent.coerceIn(1, MAX_CONCURRENT))
 
-    /** 闸门：实际能同时跑的 worker 数，随限流动。 */
+    /** Gate: how many workers may actually run at once; it moves with the limiter. */
     private val gate = Semaphore(limiter.permits, true)
     private val gateLock = Any()
 
@@ -39,7 +42,7 @@ class DownloadQueue(
             val after = limiter.onThrottled()
             val cut = before - after
             if (cut > 0) {
-                // 当前线程已经持着一个许可，再借 cut 个；返回许可前物理上就少跑 cut 个任务
+                // this thread already holds one permit; taking cut more means cut fewer tasks run until released
                 gate.acquire(cut)
                 log("撞到限流，并发 $before → $after（本线程暂时多占 $cut 个许可）")
             }
@@ -99,7 +102,7 @@ class DownloadQueue(
         return results.toList()
     }
 
-    /** 一个任务按换源链依次试，全部失败才判死。 */
+    /** Try one task through the mirror chain in order; only declare failure once all are exhausted. */
     private fun runOne(
         task: DownloadTask,
         onBytes: (Long) -> Unit,
@@ -113,7 +116,7 @@ class DownloadQueue(
         for (url in chain.candidates()) {
             if (isCancelled()) return TaskResult.Skipped(task, "已取消")
             if (!first) {
-                // 换源前清掉上一个源留下的分片，避免字节范围对不上拼出坏文件
+                // before switching mirrors drop the previous source's parts, so mismatched ranges can't be stitched into a bad file
                 File(task.dest.parentFile, "${task.dest.name}.parts").deleteRecursively()
             }
             first = false
@@ -125,7 +128,7 @@ class DownloadQueue(
                     return TaskResult.Ok(task, outcome.bytes, outcome.sha1, url)
                 }
                 is DownloadOutcome.HashMismatch -> {
-                    // 这份源给的字节是错的，换源再试；都不行才把坏文件交给玩家处置
+                    // this source served wrong bytes: try the next one, hand the bad file to the player only if none work
                     chain.reportFailure(url)
                     lastError = "SHA-1 不匹配（$url）"
                     File(task.dest.parentFile, "${task.dest.name}.parts").deleteRecursively()
@@ -141,7 +144,7 @@ class DownloadQueue(
         return TaskResult.Err(task, lastError)
     }
 
-    /** 连续成功后慢慢放开并发，但不超过初始上限。 */
+    /** Reopen concurrency gradually after consecutive successes, never past the initial cap. */
     private fun absorbSuccess() {
         synchronized(gateLock) {
             val before = limiter.permits

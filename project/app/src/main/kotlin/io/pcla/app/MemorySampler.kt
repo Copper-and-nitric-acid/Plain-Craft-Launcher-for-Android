@@ -4,14 +4,15 @@ import io.pcla.core.net.MemoryPulse
 import io.pcla.core.net.Pulse
 
 /**
- * 内存体检的采样端。
+ * Sampling side of the memory health check.
  *
- * 只读 `Runtime` 的 used/max 就够判断「便秘 vs 拉稀」：这两者的区别是
- * **时间维度上的形态**，不是某一时刻的绝对值，所以必须攒够若干个点再看。
+ * Reading used/max off `Runtime` is enough to tell "constipation" (memory never reclaimed) from
+ * "diarrhea" (constant churn): the difference is a **shape over time**, not an absolute value at
+ * one instant, so several points must be collected before looking.
  *
- * 内存变化太快的话（典型是刚进世界、区块批量加载），这里每秒一次采样会
- * 看到很大的抖动 —— 那就是「防止内存拉稀」要盯的指标：抖动本身不是坏事，
- * 抖到 GC 都追不上才是。
+ * When memory moves fast (typically right after entering a world with bulk chunk loading), the
+ * once-a-second sampling here shows heavy jitter — and that jitter is exactly what "prevent
+ * memory diarrhea" watches: jitter alone is fine, jitter GC can't keep up with is not.
  */
 object MemorySampler {
 
@@ -33,10 +34,10 @@ object MemorySampler {
     }
 
     /**
-     * 防止内存便秘：给垃圾回收留出机会。
+     * Prevent memory constipation: give the GC a chance.
      *
-     * 这里不调 System.gc()（在游戏进程里那是灾难），只是把采样重置，
-     * 避免上一局的高水位污染这一局的判断。
+     * No System.gc() here (that is a disaster in a game process), just a sample reset so the last
+     * session's high-water mark doesn't pollute this session's judgement.
      */
     fun markLaunchStart() = reset()
 }

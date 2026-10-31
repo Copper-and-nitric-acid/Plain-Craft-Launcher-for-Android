@@ -44,11 +44,11 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * 下载页：多文件队列。
+ * Download page: multi-file queue.
  *
- * 一行一个地址，地址后面空一格可以跟 SHA-1（40 位十六进制）。
- * 并发对象是「多文件」而不是「单文件多线程」——本机实测单连接 1.30 MB/s、4 分片 1.24 MB/s，
- * 把一条链路切碎只会互相抢带宽；真正能提速的是同时下多个小文件。
+ * One URL per line, with an optional SHA-1 (40 hex) after a space. Concurrency is across files, not
+ * threads within one file — measured here: one connection 1.30 MB/s, four shards 1.24 MB/s, so splitting
+ * one link only makes the shards fight for bandwidth; downloading several small files at once is what really helps.
  */
 @Composable
 fun DownloadScreen() {
@@ -82,7 +82,7 @@ fun DownloadScreen() {
 
         scope.launch {
             val queue = DownloadQueue(DownloadConfig(), maxConcurrent = 2) { msg ->
-                // 队列日志只在调试时看，UI 不刷屏
+                // Queue logs are for debugging only; don't flood the UI
                 android.util.Log.d("PCLA-DL", msg)
             }
             val results = withContext(Dispatchers.IO) {
@@ -225,7 +225,7 @@ private fun statusOf(r: TaskResult): String = when (r) {
     is TaskResult.Skipped -> "跳过：${r.reason}"
 }
 
-/** 一行一个地址；`url sha1` 用空格隔开。 */
+/** One URL per line; `url sha1` separated by a space. */
 private fun parseTasks(context: android.content.Context, raw: String): List<DownloadTask> =
     raw.lineSequence()
         .map { it.trim() }
@@ -249,7 +249,7 @@ private class SpeedMeter {
         lastAt = 0L
     }
 
-    /** 返回瞬时速度（B/s），采样间隔太短时返回 0 以免数字乱跳。 */
+    /** Returns instantaneous speed (B/s); returns 0 on too-short sampling intervals so the number does not jitter. */
     fun sample(done: Long): Double {
         val now = System.currentTimeMillis()
         if (lastAt == 0L) {

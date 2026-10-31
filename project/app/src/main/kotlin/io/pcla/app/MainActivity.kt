@@ -13,7 +13,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         installCrashHandler()
-        // 顶栏是蓝渐变，状态栏必须是白图标；边到边让渐变直接铺到状态栏下面。
+        // the top bar is a blue gradient, so status bar icons must be white; edge-to-edge lets the gradient run under the status bar.
         enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT))
         setContent {
             PclaTheme {
@@ -23,9 +23,9 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Java/Kotlin 层的崩溃落一份到应用外部目录（Android/data/io.pcla.app/files/），
-     * 用户能直接拖出来。native 崩溃（SIGSEGV）不会走到这里，但 InProcessLauncher
-     * 会在调 JVM 前写一个 start 标记，用来区分「死在 native 里」和「根本没到那一步」。
+     * Dump one copy of a Java/Kotlin crash to the app's external dir (Android/data/io.pcla.app/files/)
+     * so the user can drag it out. Native crashes (SIGSEGV) never reach here, but InProcessLauncher
+     * writes a start marker before calling the JVM, telling "died in native" from "never got there".
      */
     private fun installCrashHandler() {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
