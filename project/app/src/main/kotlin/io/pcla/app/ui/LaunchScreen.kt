@@ -58,7 +58,7 @@ internal fun LaunchScreen(heapMb: Int) {
     // which libpcla_surface.so passes on to the ANativeWindow kept in libpojavexec.so.
     var surface by remember { mutableStateOf<Surface?>(null) }
     var surfaceState by remember { mutableStateOf("还没创建") }
-    // Memory check-up: one sample per second; once the window fills, tell "constipated" from "the runs".
+    // Heap shape check: one sample per second; once the window fills, classify leak vs. churn.
     var memLine by remember { mutableStateOf("采样中…") }
     var urlLine by remember { mutableStateOf("还没测过") }
 
